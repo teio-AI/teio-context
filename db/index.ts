@@ -234,6 +234,125 @@ export async function recordProposal(input: {
   return row.id
 }
 
+// ---- freshness / operations (Phase 5) ----
+
+export async function getSpaceByRepo(owner: string, repo: string): Promise<SpaceRow | null> {
+  const rows = (await sql`
+    select * from spaces where github_owner = ${owner} and github_repo = ${repo}
+  `) as SpaceRow[]
+  return rows[0] ?? null
+}
+
+export async function listActiveSpaces(): Promise<SpaceRow[]> {
+  return (await sql`select * from spaces where status = 'active'`) as SpaceRow[]
+}
+
+/**
+ * Upsert a document into the derived FTS index. `body` is used ONLY to compute
+ * the tsvector server-side; it is never stored (ARCHITECTURE §2.2 blast-radius
+ * note — the full corpus never lives in Neon).
+ */
+export async function upsertDocument(input: {
+  spaceId: string
+  path: string
+  title: string | null
+  snippet: string | null
+  body: string
+  contentSha: string
+  commitSha: string
+}): Promise<void> {
+  await sql`
+    insert into documents (space_id, path, title, snippet, fts, content_sha, commit_sha)
+    values (${input.spaceId}, ${input.path}, ${input.title}, ${input.snippet},
+            to_tsvector('english', ${input.body}), ${input.contentSha}, ${input.commitSha})
+    on conflict (space_id, path) do update set
+      title = excluded.title, snippet = excluded.snippet, fts = excluded.fts,
+      content_sha = excluded.content_sha, commit_sha = excluded.commit_sha, updated_at = now()
+  `
+}
+
+export async function deleteDocument(spaceId: string, path: string): Promise<void> {
+  await sql`delete from documents where space_id = ${spaceId} and path = ${path}`
+}
+
+export async function listDocumentPaths(spaceId: string): Promise<string[]> {
+  const rows = (await sql`select path from documents where space_id = ${spaceId}`) as { path: string }[]
+  return rows.map((r) => r.path)
+}
+
+/** Mark every connector cursor for a space stale (its last-synced sha != new head). */
+export async function markCursorsStale(spaceId: string): Promise<void> {
+  await sql`
+    update sync_cursors set status = 'stale'
+    where connector_id in (select id from connectors where space_id = ${spaceId})
+      and (last_synced_sha is distinct from (select current_sha from spaces where id = ${spaceId}))
+  `
+}
+
+/** A consumer acks it has synced to `sha`; its cursor becomes current. */
+export async function ackCursor(connectorId: string, sha: string): Promise<void> {
+  await sql`
+    insert into sync_cursors (connector_id, last_synced_sha, last_synced_at, status)
+    values (${connectorId}, ${sha}, now(), 'current')
+    on conflict (connector_id) do update set
+      last_synced_sha = excluded.last_synced_sha, last_synced_at = now(), status = 'current'
+  `
+}
+
+export interface ProposalRow {
+  id: string
+  space_id: string
+  path: string
+  branch_ref: string
+  pr_number: number | null
+  pr_url: string | null
+  status: 'open' | 'merged' | 'closed' | 'conflict'
+}
+
+export async function listOpenProposals(spaceId: string): Promise<ProposalRow[]> {
+  return (await sql`
+    select id, space_id, path, branch_ref, pr_number, pr_url, status
+    from proposals where space_id = ${spaceId} and status in ('open', 'conflict')
+    order by created_at desc
+  `) as ProposalRow[]
+}
+
+export async function resolveProposalByPr(
+  spaceId: string,
+  prNumber: number,
+  status: 'merged' | 'closed',
+): Promise<ProposalRow | null> {
+  const rows = (await sql`
+    update proposals set status = ${status}, resolved_at = now()
+    where space_id = ${spaceId} and pr_number = ${prNumber} and status in ('open', 'conflict')
+    returning id, space_id, path, branch_ref, pr_number, pr_url, status
+  `) as ProposalRow[]
+  return rows[0] ?? null
+}
+
+/** Record a webhook delivery; returns true if new (not seen before) → process it. */
+export async function recordDelivery(deliveryId: string, event: string): Promise<boolean> {
+  const rows = (await sql`
+    insert into webhook_deliveries (delivery_id, event) values (${deliveryId}, ${event})
+    on conflict (delivery_id) do nothing returning delivery_id
+  `) as { delivery_id: string }[]
+  return rows.length > 0
+}
+
+export async function getConnectorIdForToken(tokenId: string): Promise<string | null> {
+  const rows = (await sql`select connector_id from api_tokens where id = ${tokenId}`) as { connector_id: string | null }[]
+  return rows[0]?.connector_id ?? null
+}
+
+export async function revokeToken(spaceId: string, tokenId: string): Promise<boolean> {
+  const rows = (await sql`
+    update api_tokens set revoked_at = now()
+    where id = ${tokenId} and space_id = ${spaceId} and revoked_at is null
+    returning id
+  `) as { id: string }[]
+  return rows.length > 0
+}
+
 export async function insertAudit(entry: {
   spaceId: string | null
   actorType: string

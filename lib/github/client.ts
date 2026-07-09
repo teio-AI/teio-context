@@ -1,4 +1,4 @@
-import { GitHubError } from '../errors'
+import { GitHubError, RateLimitedError } from '../errors'
 import type { FetchImpl } from './app-auth'
 
 const API_BASE = 'https://api.github.com'
@@ -45,10 +45,26 @@ export class GitHubClient implements GitHubApi {
       }
     }
     if (!res.ok) {
+      // Secondary/primary rate limit → surface as 429 with Retry-After
+      // (ARCHITECTURE §7.1) rather than a generic 502. GitHub signals it as a
+      // 403 (or 429) with a Retry-After header or x-ratelimit-remaining: 0.
+      if (isRateLimit(res)) {
+        const retryAfter = res.headers.get('retry-after')
+        throw new RateLimitedError(retryAfter ? Number(retryAfter) : null, `${method} ${path}`)
+      }
       const message =
         data && typeof data === 'object' && 'message' in data ? String((data as { message: unknown }).message) : text
       throw new GitHubError(res.status, message, `${method} ${path}`)
     }
     return { status: res.status, data: data as T }
   }
+}
+
+function isRateLimit(res: Response): boolean {
+  if (res.status === 429) return true
+  if (res.status === 403) {
+    if (res.headers.get('retry-after')) return true
+    if (res.headers.get('x-ratelimit-remaining') === '0') return true
+  }
+  return false
 }

@@ -1,4 +1,3 @@
-import { NotImplementedError } from '../errors'
 import type { GitHubApi } from '../github/client'
 import { encodeContentsPath } from '../github/paths'
 import { GitHubError, NotFoundError } from '../errors'
@@ -42,6 +41,8 @@ export interface ContextServiceDeps {
   listSpacesForPrincipal(principal: Principal): Promise<SpaceSummary[]>
   /** Postgres FTS over the derived `documents` index (tsvector + snippet, not full bodies). */
   searchDocuments(spaceId: string, query: string): Promise<SearchHit[]>
+  /** Open + conflict proposals (PRs awaiting a human) for a space. */
+  listOpenProposals(spaceId: string): Promise<unknown[]>
 
   // --- write path (Phase 3-4) ---
   /**
@@ -131,8 +132,8 @@ export class GitContextService implements ContextService {
     return this.deps.searchDocuments(spaceId, query)
   }
 
-  async listProposals(_principal: Principal, _spaceId: string): Promise<unknown[]> {
-    throw new NotImplementedError('listProposals', 'Phase 5')
+  async listProposals(_principal: Principal, spaceId: string): Promise<unknown[]> {
+    return this.deps.listOpenProposals(spaceId)
   }
 
   async proposeUpdate(principal: Principal, spaceId: string, input: ProposeInput): Promise<WriteResult> {

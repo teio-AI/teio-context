@@ -46,6 +46,7 @@ function makeService(policy: WritePolicy, routes: Record<string, Stub>) {
     clientFor: async () => gh(routes),
     listSpacesForPrincipal: async () => [],
     searchDocuments: async () => [],
+    listOpenProposals: async () => [],
     resolveWritePolicy: async () => policy,
     setCurrentSha,
     recordProposal,
