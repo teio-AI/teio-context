@@ -497,6 +497,9 @@ Everything is a GAP (greenfield); no merge-engine or authz path lands without a
 
 ## 10. Implementation plan (riskiest work front-loaded)
 
+**v1 status: all phases shipped ✅** (Phases 0–5 merged to `main`; 87 tests, tsc
++ build green). This section is retained as the record of how it was sequenced.
+
 ```
 PHASE 0 — De-risking spike  ✅ DONE (SPIKE-FINDINGS.md): GO.
   Proved 3-way merge (201/409/204), installation-token identity, force-push block,
