@@ -7,6 +7,11 @@ export function hasRole(actual: Role, required: Role): boolean {
   return RANK[actual] >= RANK[required]
 }
 
+/** The stricter of two required roles (e.g. a move touching both context/** and space.yaml). */
+export function higherRole(a: Role, b: Role): Role {
+  return RANK[a] >= RANK[b] ? a : b
+}
+
 /** Resolve a principal's role on a space (from Neon space_members). null = not a member. */
 export type MemberLookup = (spaceId: string, principalType: Principal['type'], principalId: string) => Promise<Role | null>
 

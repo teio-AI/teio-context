@@ -136,6 +136,31 @@ export async function searchDocuments(spaceId: string, query: string, limit = 20
   return rows.map((r) => ({ path: r.path, title: r.title ?? undefined, snippet: r.snippet ?? undefined }))
 }
 
+export async function setCurrentSha(spaceId: string, sha: string): Promise<void> {
+  await sql`update spaces set current_sha = ${sha}, updated_at = now() where id = ${spaceId}`
+}
+
+export async function recordProposal(input: {
+  spaceId: string
+  actorDisplay: string
+  path: string
+  baseSha: string
+  branchRef: string
+  prNumber: number
+  prUrl: string
+  status: 'proposal' | 'conflict'
+}): Promise<string> {
+  const rows = (await sql`
+    insert into proposals (space_id, actor_display, path, base_sha, branch_ref, pr_number, pr_url, status)
+    values (${input.spaceId}, ${input.actorDisplay}, ${input.path}, ${input.baseSha}, ${input.branchRef},
+            ${input.prNumber}, ${input.prUrl}, ${input.status})
+    returning id
+  `) as { id: string }[]
+  const row = rows[0]
+  if (!row) throw new Error('recordProposal: insert returned no row')
+  return row.id
+}
+
 export async function insertAudit(entry: {
   spaceId: string | null
   actorType: string

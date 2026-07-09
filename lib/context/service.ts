@@ -1,11 +1,36 @@
-import { GitHubError, NotFoundError, NotImplementedError } from '../errors'
+import { NotImplementedError } from '../errors'
 import type { GitHubApi } from '../github/client'
+import { encodeContentsPath } from '../github/paths'
+import { GitHubError, NotFoundError } from '../errors'
+import { WriteEngine, type EngineResult, type Identity, type WriteChange, type WritePolicy } from './write-engine'
 import type { ContextService, DocumentRead, Principal, ProposeInput, SearchHit, SpaceSummary, WriteResult } from './types'
 
 export interface SpaceRepoRef {
   owner: string
   repo: string
   defaultBranch: string
+}
+
+export interface RecordProposalInput {
+  spaceId: string
+  actorDisplay: string
+  path: string
+  baseSha: string
+  branchRef: string
+  prNumber: number
+  prUrl: string
+  status: 'proposal' | 'conflict'
+}
+
+export interface AuditEntry {
+  spaceId: string
+  actorType: Principal['type']
+  actorId: string
+  action: string
+  path: string | null
+  baseSha?: string | null
+  resultSha?: string | null
+  outcome: 'ok' | 'conflict' | 'denied' | 'error'
 }
 
 export interface ContextServiceDeps {
@@ -17,6 +42,20 @@ export interface ContextServiceDeps {
   listSpacesForPrincipal(principal: Principal): Promise<SpaceSummary[]>
   /** Postgres FTS over the derived `documents` index (tsvector + snippet, not full bodies). */
   searchDocuments(spaceId: string, query: string): Promise<SearchHit[]>
+
+  // --- write path (Phase 3) ---
+  /** Effective write-back policy for a space (connector override lands in Phase 4). */
+  resolveWritePolicy(spaceId: string): Promise<WritePolicy>
+  /** Persist the new main HEAD after a merged write (O(1) staleness). */
+  setCurrentSha(spaceId: string, sha: string): Promise<void>
+  /** Record a PR-backed proposal (proposal_only or conflict). Returns the proposal id. */
+  recordProposal(input: RecordProposalInput): Promise<string>
+  /** Authoritative attribution + operability record (ARCHITECTURE §6). */
+  audit(entry: AuditEntry): Promise<void>
+  /** The GitHub App bot identity stamped as commit committer. */
+  botCommitter: Identity
+  /** Injectable branch-name factory (deterministic tests). */
+  newBranchName?: () => string
 }
 
 /** Translate a GitHub 404 into our own NotFoundError; anything else rethrows unchanged. */
@@ -29,15 +68,22 @@ async function translateGitHub404<T>(promise: Promise<T>, message: string): Prom
   }
 }
 
+/** Stamp the real actor as the git author (audit_log remains the authoritative record). */
+function authorFor(principal: Principal): Identity {
+  return { name: principal.display ?? principal.id, email: `${principal.id}@users.noreply.teio-context` }
+}
+
 /**
- * Phase 1 established the read path (getVersion, getDocument) and the write
- * path skeleton (NotImplementedError). Phase 2 adds: listSpaces, search (via
- * the derived FTS index, not GitHub), and dedupes getDocument's GitHub calls
- * (it previously called getVersion internally, doubling loadSpaceRepo +
- * clientFor + the ref lookup for every document read).
+ * The read path (Phase 1-2) plus the write path (Phase 3). Writes delegate to
+ * WriteEngine for GitHub orchestration; this class owns the DB side effects
+ * (current_sha, proposals, audit) so the engine stays pure and testable.
  */
 export class GitContextService implements ContextService {
-  constructor(private readonly deps: ContextServiceDeps) {}
+  private readonly engine: WriteEngine
+
+  constructor(private readonly deps: ContextServiceDeps) {
+    this.engine = new WriteEngine({ committer: deps.botCommitter, newBranchName: deps.newBranchName })
+  }
 
   async listSpaces(principal: Principal): Promise<SpaceSummary[]> {
     return this.deps.listSpacesForPrincipal(principal)
@@ -57,9 +103,6 @@ export class GitContextService implements ContextService {
     const { owner, repo, defaultBranch } = await this.deps.loadSpaceRepo(spaceId)
     const gh = await this.deps.clientFor(spaceId)
 
-    // Content (blob) and version (branch head) are independent GitHub calls —
-    // run them concurrently instead of the Phase 1 pattern of calling
-    // getVersion() as a nested, fully-redundant loadSpaceRepo+clientFor+fetch.
     const [contentRes, refRes] = await Promise.all([
       translateGitHub404(
         gh.request<{ content: string; encoding: string; sha: string }>(
@@ -85,34 +128,112 @@ export class GitContextService implements ContextService {
   }
 
   async listProposals(_principal: Principal, _spaceId: string): Promise<unknown[]> {
-    throw new NotImplementedError('listProposals', 'Phase 3')
+    throw new NotImplementedError('listProposals', 'Phase 5')
   }
 
-  async proposeUpdate(_principal: Principal, _spaceId: string, _input: ProposeInput): Promise<WriteResult> {
-    throw new NotImplementedError('proposeUpdate', 'Phase 3 (CAS fast path + 3-way merge)')
+  async proposeUpdate(principal: Principal, spaceId: string, input: ProposeInput): Promise<WriteResult> {
+    return this.runWrite(
+      principal,
+      spaceId,
+      { kind: 'upsert', path: input.path, content: input.content },
+      { baseVersion: input.baseVersion, baseBlob: input.baseBlob },
+      'upsert',
+      input.path,
+    )
   }
 
-  async deletePath(
-    _principal: Principal,
-    _spaceId: string,
-    _input: { path: string; baseVersion?: string },
-  ): Promise<WriteResult> {
-    throw new NotImplementedError('deletePath', 'Phase 3')
+  async deletePath(principal: Principal, spaceId: string, input: { path: string; baseVersion?: string }): Promise<WriteResult> {
+    return this.runWrite(
+      principal,
+      spaceId,
+      { kind: 'delete', path: input.path },
+      { baseVersion: input.baseVersion },
+      'delete',
+      input.path,
+    )
   }
 
   async movePath(
-    _principal: Principal,
-    _spaceId: string,
-    _input: { from: string; to: string; baseVersion?: string },
+    principal: Principal,
+    spaceId: string,
+    input: { from: string; to: string; baseVersion?: string },
   ): Promise<WriteResult> {
-    throw new NotImplementedError('movePath', 'Phase 3')
+    return this.runWrite(
+      principal,
+      spaceId,
+      { kind: 'move', from: input.from, to: input.to },
+      { baseVersion: input.baseVersion },
+      'move',
+      `${input.from} → ${input.to}`,
+    )
+  }
+
+  private async runWrite(
+    principal: Principal,
+    spaceId: string,
+    change: WriteChange,
+    base: { baseVersion?: string; baseBlob?: string },
+    opKind: 'upsert' | 'delete' | 'move',
+    auditPath: string,
+  ): Promise<WriteResult> {
+    const { owner, repo, defaultBranch } = await this.deps.loadSpaceRepo(spaceId)
+    const gh = await this.deps.clientFor(spaceId)
+    const policy = await this.deps.resolveWritePolicy(spaceId)
+
+    const result = await this.engine.write(
+      gh,
+      { owner, repo, branch: defaultBranch },
+      change,
+      { baseVersion: base.baseVersion, baseBlob: base.baseBlob, policy, author: authorFor(principal) },
+    )
+    return this.persist(principal, spaceId, auditPath, base.baseVersion, result, opKind)
+  }
+
+  private async persist(
+    principal: Principal,
+    spaceId: string,
+    path: string,
+    baseVersion: string | undefined,
+    result: EngineResult,
+    opKind: 'upsert' | 'delete' | 'move',
+  ): Promise<WriteResult> {
+    if (result.status === 'merged') {
+      await this.deps.setCurrentSha(spaceId, result.version)
+      const action = opKind === 'upsert' ? (result.viaFastPath ? 'cas_write' : 'merge') : opKind
+      await this.deps.audit({
+        spaceId,
+        actorType: principal.type,
+        actorId: principal.id,
+        action,
+        path,
+        baseSha: baseVersion ?? null,
+        resultSha: result.version,
+        outcome: 'ok',
+      })
+      return { status: 'merged', version: result.version }
+    }
+
+    const proposalId = await this.deps.recordProposal({
+      spaceId,
+      actorDisplay: principal.display ?? principal.id,
+      path,
+      baseSha: result.baseSha,
+      branchRef: result.branchRef,
+      prNumber: result.prNumber,
+      prUrl: result.prUrl,
+      status: result.status,
+    })
+    await this.deps.audit({
+      spaceId,
+      actorType: principal.type,
+      actorId: principal.id,
+      action: result.status === 'conflict' ? 'conflict_pr' : 'propose',
+      path,
+      baseSha: result.baseSha,
+      outcome: result.status === 'conflict' ? 'conflict' : 'ok',
+    })
+    return { status: result.status, prUrl: result.prUrl, proposalId }
   }
 }
 
-/** Encode each path segment but keep the slashes (GitHub Contents API expects a path). */
-export function encodeContentsPath(path: string): string {
-  return path
-    .split('/')
-    .map((seg) => encodeURIComponent(seg))
-    .join('/')
-}
+export { encodeContentsPath }
