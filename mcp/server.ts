@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // The MCP adapter (ARCHITECTURE §4). Launched by Claude Code / Cursor / Codex
 // with a per-space machine token — e.g. `bun run mcp/server.ts` with
-// TEIO_CONTEXT_API_URL and TEIO_CONTEXT_TOKEN set. Read-only tools (Phase 2);
-// propose_update/delete_path land in Phase 4 once the write path (Phase 3) exists.
+// TEIO_CONTEXT_API_URL and TEIO_CONTEXT_TOKEN set. Read + write tools; the
+// server never talks to GitHub/Neon directly, only this REST API — the
+// write-back policy (proposal_only by default for MCP connectors) is
+// enforced server-side from the token's connector binding, not by anything
+// this adapter asserts (ARCHITECTURE §3.1).
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
@@ -82,6 +85,69 @@ export function createServer(client: TeioContextClient): McpServer {
     async ({ spaceId, query }) => {
       try {
         return textResult(await client.search(spaceId, query))
+      } catch (err) {
+        return errorResult(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    'propose_update',
+    {
+      description:
+        'Propose a change to a document (creates it if it does not exist). A clean, non-conflicting edit may auto-merge ' +
+        'immediately depending on the space/connector policy; otherwise it opens a pull request for a human to review. ' +
+        'Always pass baseVersion and baseBlob from a prior get_document call when editing an existing file.',
+      inputSchema: {
+        spaceId: z.string().describe('The space id (from list_spaces).'),
+        path: z.string().describe('Path within the space, e.g. context/overview.md'),
+        content: z.string().describe('The full new content of the file (UTF-8 text, max 1 MiB).'),
+        baseVersion: z.string().optional().describe('The version SHA from get_document, for optimistic concurrency.'),
+        baseBlob: z.string().optional().describe('The blob SHA from get_document — enables the fast, single-call merge path.'),
+      },
+    },
+    async ({ spaceId, path, content, baseVersion, baseBlob }) => {
+      try {
+        return textResult(await client.proposeUpdate(spaceId, { path, content, baseVersion, baseBlob }))
+      } catch (err) {
+        return errorResult(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    'delete_path',
+    {
+      description: 'Delete a document from a space. May open a pull request instead of deleting immediately, per policy.',
+      inputSchema: {
+        spaceId: z.string().describe('The space id (from list_spaces).'),
+        path: z.string().describe('Path to delete.'),
+        baseVersion: z.string().optional().describe('The version SHA from get_document/get_version, for optimistic concurrency.'),
+      },
+    },
+    async ({ spaceId, path, baseVersion }) => {
+      try {
+        return textResult(await client.deletePath(spaceId, { path, baseVersion }))
+      } catch (err) {
+        return errorResult(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    'move_path',
+    {
+      description: 'Rename or move a document within a space (a true rename — content is preserved, not recreated).',
+      inputSchema: {
+        spaceId: z.string().describe('The space id (from list_spaces).'),
+        from: z.string().describe('Current path.'),
+        to: z.string().describe('New path.'),
+        baseVersion: z.string().optional().describe('The version SHA from get_document/get_version, for optimistic concurrency.'),
+      },
+    },
+    async ({ spaceId, from, to, baseVersion }) => {
+      try {
+        return textResult(await client.movePath(spaceId, { from, to, baseVersion }))
       } catch (err) {
         return errorResult(err)
       }
