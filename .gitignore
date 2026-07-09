@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+.next/
+coverage/
+*.tsbuildinfo
+# Next.js generates this on dev/build; regenerated locally, not tracked
+next-env.d.ts
