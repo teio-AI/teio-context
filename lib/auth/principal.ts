@@ -7,6 +7,7 @@ export interface TokenRow {
   space_id: string
   token_hash: string
   role: 'reader' | 'editor'
+  connector_id: string | null
   expires_at: string | null
   revoked_at: string | null
 }

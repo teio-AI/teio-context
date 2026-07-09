@@ -18,7 +18,16 @@ function reqWithAuth(header?: string): Request {
 }
 
 function tokenRow(overrides: Partial<TokenRow> = {}, hash: string): TokenRow {
-  return { id: 't1', space_id: 's1', token_hash: hash, role: 'editor', expires_at: null, revoked_at: null, ...overrides }
+  return {
+    id: 't1',
+    space_id: 's1',
+    token_hash: hash,
+    role: 'editor',
+    connector_id: null,
+    expires_at: null,
+    revoked_at: null,
+    ...overrides,
+  }
 }
 
 beforeEach(() => {

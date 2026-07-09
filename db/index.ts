@@ -84,10 +84,31 @@ export const getMemberRole: MemberLookup = async (spaceId, principalType, princi
 
 export async function findTokenByPrefix(prefix: string): Promise<TokenRow | null> {
   const rows = (await sql`
-    select id, space_id, token_hash, role, expires_at, revoked_at
+    select id, space_id, token_hash, role, connector_id, expires_at, revoked_at
     from api_tokens where token_prefix = ${prefix}
   `) as TokenRow[]
   return rows[0] ?? null
+}
+
+export async function insertApiToken(input: {
+  spaceId: string
+  name: string
+  tokenPrefix: string
+  tokenHash: string
+  role: 'reader' | 'editor'
+  connectorId?: string | null
+  createdBy: string
+  expiresAt?: string | null
+}): Promise<{ id: string }> {
+  const rows = (await sql`
+    insert into api_tokens (space_id, name, token_prefix, token_hash, role, connector_id, created_by, expires_at)
+    values (${input.spaceId}, ${input.name}, ${input.tokenPrefix}, ${input.tokenHash}, ${input.role},
+            ${input.connectorId ?? null}, ${input.createdBy}, ${input.expiresAt ?? null})
+    returning id
+  `) as { id: string }[]
+  const row = rows[0]
+  if (!row) throw new Error('insertApiToken: insert returned no row')
+  return row
 }
 
 export async function touchTokenLastUsed(tokenId: string): Promise<void> {
@@ -134,6 +155,58 @@ export async function searchDocuments(spaceId: string, query: string, limit = 20
     limit ${limit}
   `) as { path: string; title: string | null; snippet: string | null }[]
   return rows.map((r) => ({ path: r.path, title: r.title ?? undefined, snippet: r.snippet ?? undefined }))
+}
+
+export interface ConnectorRow {
+  id: string
+  space_id: string
+  kind: 'mcp' | 'teio' | 'customer'
+  name: string
+  write_back_policy: 'auto_merge_clean' | 'proposal_only' | 'inherit'
+  status: 'active' | 'disabled'
+}
+
+export async function createConnector(input: {
+  spaceId: string
+  kind: ConnectorRow['kind']
+  name: string
+  writeBackPolicy: ConnectorRow['write_back_policy']
+}): Promise<ConnectorRow> {
+  const rows = (await sql`
+    insert into connectors (space_id, kind, name, write_back_policy)
+    values (${input.spaceId}, ${input.kind}, ${input.name}, ${input.writeBackPolicy})
+    returning id, space_id, kind, name, write_back_policy, status
+  `) as ConnectorRow[]
+  const row = rows[0]
+  if (!row) throw new Error('createConnector: insert returned no row')
+  return row
+}
+
+export async function getConnectorById(id: string): Promise<ConnectorRow | null> {
+  const rows = (await sql`
+    select id, space_id, kind, name, write_back_policy, status from connectors where id = ${id}
+  `) as ConnectorRow[]
+  return rows[0] ?? null
+}
+
+/**
+ * The write-back policy for a token's bound connector, resolved ('inherit'
+ * -> spaceDefault). null = the token has no connector (or it's disabled) —
+ * caller falls through to the space default (ARCHITECTURE §3.1).
+ */
+export async function resolveConnectorPolicyForToken(
+  tokenId: string,
+  spaceDefault: ConnectorRow['write_back_policy'] & ('auto_merge_clean' | 'proposal_only'),
+): Promise<'auto_merge_clean' | 'proposal_only' | null> {
+  const rows = (await sql`
+    select c.write_back_policy
+    from api_tokens t
+    join connectors c on c.id = t.connector_id
+    where t.id = ${tokenId} and c.status = 'active'
+  `) as { write_back_policy: ConnectorRow['write_back_policy'] }[]
+  const policy = rows[0]?.write_back_policy
+  if (!policy) return null
+  return policy === 'inherit' ? spaceDefault : policy
 }
 
 export async function setCurrentSha(spaceId: string, sha: string): Promise<void> {

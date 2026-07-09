@@ -43,9 +43,13 @@ export interface ContextServiceDeps {
   /** Postgres FTS over the derived `documents` index (tsvector + snippet, not full bodies). */
   searchDocuments(spaceId: string, query: string): Promise<SearchHit[]>
 
-  // --- write path (Phase 3) ---
-  /** Effective write-back policy for a space (connector override lands in Phase 4). */
-  resolveWritePolicy(spaceId: string): Promise<WritePolicy>
+  // --- write path (Phase 3-4) ---
+  /**
+   * Effective write-back policy: the principal's bound connector (if a
+   * machine token issued for one) overrides the space default, resolved
+   * server-side from stored identity — never caller-asserted (ARCHITECTURE §3.1).
+   */
+  resolveWritePolicy(spaceId: string, principal: Principal): Promise<WritePolicy>
   /** Persist the new main HEAD after a merged write (O(1) staleness). */
   setCurrentSha(spaceId: string, sha: string): Promise<void>
   /** Record a PR-backed proposal (proposal_only or conflict). Returns the proposal id. */
@@ -69,7 +73,7 @@ async function translateGitHub404<T>(promise: Promise<T>, message: string): Prom
 }
 
 /** Stamp the real actor as the git author (audit_log remains the authoritative record). */
-function authorFor(principal: Principal): Identity {
+export function authorFor(principal: Principal): Identity {
   return { name: principal.display ?? principal.id, email: `${principal.id}@users.noreply.teio-context` }
 }
 
@@ -178,7 +182,7 @@ export class GitContextService implements ContextService {
   ): Promise<WriteResult> {
     const { owner, repo, defaultBranch } = await this.deps.loadSpaceRepo(spaceId)
     const gh = await this.deps.clientFor(spaceId)
-    const policy = await this.deps.resolveWritePolicy(spaceId)
+    const policy = await this.deps.resolveWritePolicy(spaceId, principal)
 
     const result = await this.engine.write(
       gh,
