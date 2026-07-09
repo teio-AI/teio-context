@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { authorizeSpace, hasRole, requiredRoleForPath } from '@/lib/auth/authorize'
+import { authorizeSpace, hasRole, higherRole, requiredRoleForPath } from '@/lib/auth/authorize'
 import { ForbiddenError, ValidationError } from '@/lib/errors'
 import type { Role } from '@/lib/context/types'
 
@@ -9,6 +9,15 @@ describe('hasRole', () => {
     expect(hasRole('editor', 'editor')).toBe(true)
     expect(hasRole('reader', 'editor')).toBe(false)
     expect(hasRole('editor', 'owner')).toBe(false)
+  })
+})
+
+describe('higherRole', () => {
+  it('returns the stricter of two roles', () => {
+    expect(higherRole('editor', 'owner')).toBe('owner')
+    expect(higherRole('owner', 'editor')).toBe('owner')
+    expect(higherRole('reader', 'editor')).toBe('editor')
+    expect(higherRole('editor', 'editor')).toBe('editor')
   })
 })
 

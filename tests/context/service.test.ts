@@ -31,6 +31,12 @@ function makeDeps(overrides: Partial<ContextServiceDeps> = {}): ContextServiceDe
     ),
     listSpacesForPrincipal: vi.fn(async () => []),
     searchDocuments: vi.fn(async () => []),
+    // Write deps (unused by the read-path tests below; see service-write.test.ts).
+    resolveWritePolicy: vi.fn(async () => 'auto_merge_clean' as const),
+    setCurrentSha: vi.fn(async () => {}),
+    recordProposal: vi.fn(async () => 'prop-x'),
+    audit: vi.fn(async () => {}),
+    botCommitter: { name: 'bot', email: 'bot@x' },
     ...overrides,
   }
 }
@@ -91,9 +97,9 @@ describe('GitContextService', () => {
     expect(searchDocuments).toHaveBeenCalledWith('s1', 'billing')
   })
 
-  it('proposeUpdate remains not implemented (Phase 3)', async () => {
-    await expect(
-      new GitContextService(makeDeps()).proposeUpdate(principal, 's1', { path: 'context/x.md', content: 'y' }),
-    ).rejects.toBeInstanceOf(NotImplementedError)
+  it('listProposals remains not implemented (Phase 5)', async () => {
+    await expect(new GitContextService(makeDeps()).listProposals(principal, 's1')).rejects.toBeInstanceOf(
+      NotImplementedError,
+    )
   })
 })
