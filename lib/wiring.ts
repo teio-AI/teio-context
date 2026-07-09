@@ -67,6 +67,7 @@ export function getContextService(): ContextService {
       listSpacesForPrincipal: (principal) =>
         principal.type === 'user' ? db.listSpacesForUser(principal.id) : db.listSpacesForToken(principal.id),
       searchDocuments: db.searchDocuments,
+      listOpenProposals: db.listOpenProposals,
       clientFor: clientForSpace,
       resolveWritePolicy,
       setCurrentSha: db.setCurrentSha,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ContextServiceDeps } from '@/lib/context/service'
 import { GitContextService } from '@/lib/context/service'
-import { GitHubError, NotFoundError, NotImplementedError } from '@/lib/errors'
+import { GitHubError, NotFoundError } from '@/lib/errors'
 import type { GitHubApi } from '@/lib/github/client'
 
 function ghReturning(map: Record<string, unknown | (() => unknown)>): GitHubApi {
@@ -31,6 +31,7 @@ function makeDeps(overrides: Partial<ContextServiceDeps> = {}): ContextServiceDe
     ),
     listSpacesForPrincipal: vi.fn(async () => []),
     searchDocuments: vi.fn(async () => []),
+    listOpenProposals: vi.fn(async () => []),
     // Write deps (unused by the read-path tests below; see service-write.test.ts).
     resolveWritePolicy: vi.fn(async () => 'auto_merge_clean' as const),
     setCurrentSha: vi.fn(async () => {}),
@@ -97,9 +98,10 @@ describe('GitContextService', () => {
     expect(searchDocuments).toHaveBeenCalledWith('s1', 'billing')
   })
 
-  it('listProposals remains not implemented (Phase 5)', async () => {
-    await expect(new GitContextService(makeDeps()).listProposals(principal, 's1')).rejects.toBeInstanceOf(
-      NotImplementedError,
-    )
+  it('listProposals delegates to listOpenProposals for the space', async () => {
+    const listOpenProposals = vi.fn(async () => [{ id: 'p1', status: 'open' }])
+    const proposals = await new GitContextService(makeDeps({ listOpenProposals })).listProposals(principal, 's1')
+    expect(proposals).toEqual([{ id: 'p1', status: 'open' }])
+    expect(listOpenProposals).toHaveBeenCalledWith('s1')
   })
 })

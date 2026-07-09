@@ -73,3 +73,17 @@ export class GitHubError extends AppError {
     this.op = op
   }
 }
+
+/**
+ * GitHub secondary/primary rate limit hit. Surfaced to callers as 429 with a
+ * Retry-After (ARCHITECTURE §7.1: v1 is synchronous, returns 429 — no silent
+ * loss, no fake in-function queue). `retryAfterSeconds` may be null when GitHub
+ * gave no hint.
+ */
+export class RateLimitedError extends AppError {
+  readonly retryAfterSeconds: number | null
+  constructor(retryAfterSeconds: number | null, op: string) {
+    super(`GitHub rate limit hit [${op}]; retry later`, 'rate_limited', 429)
+    this.retryAfterSeconds = retryAfterSeconds
+  }
+}
