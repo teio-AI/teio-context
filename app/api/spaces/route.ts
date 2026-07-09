@@ -1,13 +1,17 @@
 import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import * as db from '@/db'
-import { UnauthorizedError, ValidationError } from '@/lib/errors'
+import { ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors'
 import { getEnv, getPrivateKey } from '@/lib/env'
-import { InstallationTokenProvider, getOrgInstallationId } from '@/lib/github/app-auth'
+import { isStaff, parseStaffIds } from '@/lib/auth/staff'
+import { getOrgInstallationId } from '@/lib/github/app-auth'
 import { GitHubClient } from '@/lib/github/client'
+import { getInstallationTokenProvider } from '@/lib/github/singleton'
 import { provisionSpaceRepo } from '@/lib/github/provision'
 import { toResponse } from '@/lib/http'
 import { renderSpaceYaml } from '@/lib/space-yaml'
+import { authzDeps, getContextService } from '@/lib/wiring'
+import { resolvePrincipal } from '@/lib/auth/context'
 
 export const runtime = 'nodejs'
 
@@ -18,15 +22,30 @@ const Body = z.object({
   name: z.string().min(1).max(200),
 })
 
+/** List spaces the caller (Clerk user or machine token) is a member of. */
+export async function GET(req: Request): Promise<Response> {
+  try {
+    const { principal } = await resolvePrincipal(req, authzDeps)
+    const spaces = await getContextService().listSpaces(principal)
+    return Response.json({ spaces })
+  } catch (err) {
+    return toResponse(err)
+  }
+}
+
 /**
  * Create a space: provision the git repo (seed commit → PR-required ruleset with
  * App bypass) then register it in Neon and make the creator an owner.
- * Done-when criterion for Phase 1.
+ * Requires staff access (STAFF_USER_IDS) — space creation is an admin operation,
+ * not something any authenticated user should be able to trigger.
  */
 export async function POST(req: Request): Promise<Response> {
   try {
     const { userId } = await auth()
     if (!userId) throw new UnauthorizedError('sign in required')
+    if (!isStaff(userId, parseStaffIds(getEnv().STAFF_USER_IDS))) {
+      throw new ForbiddenError('space creation requires staff access')
+    }
 
     const parsed = Body.safeParse(await req.json().catch(() => null))
     if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join('; '))
@@ -37,8 +56,11 @@ export async function POST(req: Request): Promise<Response> {
     const appId = Number(env.GITHUB_APP_ID)
     const org = env.GITHUB_ORG
 
+    // getOrgInstallationId is a one-off App-JWT lookup (space creation is rare,
+    // staff-only), not worth caching. The token exchange below IS cached — it's
+    // reused across every read/write on every space (lib/github/singleton.ts).
     const installationId = await getOrgInstallationId(appId, key, org)
-    const token = await new InstallationTokenProvider(appId, key).getToken(installationId)
+    const token = await getInstallationTokenProvider().getToken(installationId)
     const gh = new GitHubClient(token)
 
     const repo = `teio-context-${slug}`

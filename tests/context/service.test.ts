@@ -1,47 +1,99 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import type { ContextServiceDeps } from '@/lib/context/service'
 import { GitContextService } from '@/lib/context/service'
-import { NotImplementedError } from '@/lib/errors'
+import { GitHubError, NotFoundError, NotImplementedError } from '@/lib/errors'
 import type { GitHubApi } from '@/lib/github/client'
 
-function ghReturning(map: Record<string, unknown>): GitHubApi {
+function ghReturning(map: Record<string, unknown | (() => unknown)>): GitHubApi {
   return {
     request: async (_m: string, path: string) => {
       for (const key of Object.keys(map)) {
-        if (path.includes(key)) return { status: 200, data: map[key] }
+        if (path.includes(key)) {
+          const entry = map[key]
+          const value = typeof entry === 'function' ? (entry as () => unknown)() : entry
+          if (value instanceof GitHubError) throw value
+          return { status: 200, data: value }
+        }
       }
       throw new Error(`no stub for ${path}`)
     },
   } as unknown as GitHubApi
 }
 
-const deps = {
-  loadSpaceRepo: async () => ({ owner: 'teio', repo: 'teio-context-acme', defaultBranch: 'main' }),
-  clientFor: async () =>
-    ghReturning({
-      '/git/ref/heads/main': { object: { sha: 'commitsha' } },
-      '/contents/': { content: Buffer.from('hello world', 'utf8').toString('base64'), encoding: 'base64', sha: 'blobsha' },
-    }),
+function makeDeps(overrides: Partial<ContextServiceDeps> = {}): ContextServiceDeps {
+  return {
+    loadSpaceRepo: vi.fn(async () => ({ owner: 'teio', repo: 'teio-context-acme', defaultBranch: 'main' })),
+    clientFor: vi.fn(async () =>
+      ghReturning({
+        '/git/ref/heads/main': { object: { sha: 'commitsha' } },
+        '/contents/': { content: Buffer.from('hello world', 'utf8').toString('base64'), encoding: 'base64', sha: 'blobsha' },
+      }),
+    ),
+    listSpacesForPrincipal: vi.fn(async () => []),
+    searchDocuments: vi.fn(async () => []),
+    ...overrides,
+  }
 }
 
-describe('GitContextService (Phase 1 read path)', () => {
-  const svc = new GitContextService(deps)
-  const principal = { type: 'user', id: 'u' } as const
+const principal = { type: 'user', id: 'u' } as const
 
+describe('GitContextService', () => {
   it('getVersion returns the branch head sha', async () => {
+    const svc = new GitContextService(makeDeps())
     const v = await svc.getVersion(principal, 's1')
     expect(v.sha).toBe('commitsha')
   })
 
-  it('getDocument decodes content and returns blob + version', async () => {
-    const d = await svc.getDocument(principal, 's1', 'context/overview.md')
+  it('getVersion translates a GitHub 404 into NotFoundError', async () => {
+    const deps = makeDeps({
+      clientFor: async () => ghReturning({ '/git/ref/heads/main': () => new GitHubError(404, 'Not Found', 'GET /ref') }),
+    })
+    await expect(new GitContextService(deps).getVersion(principal, 's1')).rejects.toBeInstanceOf(NotFoundError)
+  })
+
+  it('getDocument decodes content, returns blob + version, and hits loadSpaceRepo/clientFor exactly once each', async () => {
+    const deps = makeDeps()
+    const d = await new GitContextService(deps).getDocument(principal, 's1', 'context/overview.md')
+
     expect(d.content).toBe('hello world')
     expect(d.blob).toBe('blobsha')
     expect(d.version).toBe('commitsha')
+    // Regression guard: Phase 1's getDocument called getVersion() internally,
+    // doubling loadSpaceRepo + clientFor for a single document read.
+    expect(deps.loadSpaceRepo).toHaveBeenCalledTimes(1)
+    expect(deps.clientFor).toHaveBeenCalledTimes(1)
   })
 
-  it('proposeUpdate is not implemented in Phase 1', async () => {
+  it('getDocument translates a GitHub 404 on the content call into NotFoundError', async () => {
+    const deps = makeDeps({
+      clientFor: async () =>
+        ghReturning({
+          '/git/ref/heads/main': { object: { sha: 'commitsha' } },
+          '/contents/': () => new GitHubError(404, 'Not Found', 'GET /contents'),
+        }),
+    })
+    await expect(new GitContextService(deps).getDocument(principal, 's1', 'context/missing.md')).rejects.toBeInstanceOf(
+      NotFoundError,
+    )
+  })
+
+  it('listSpaces delegates to listSpacesForPrincipal with the principal', async () => {
+    const listSpacesForPrincipal = vi.fn(async () => [{ id: 's1', slug: 'acme', name: 'Acme', role: 'owner' as const }])
+    const spaces = await new GitContextService(makeDeps({ listSpacesForPrincipal })).listSpaces(principal)
+    expect(spaces).toHaveLength(1)
+    expect(listSpacesForPrincipal).toHaveBeenCalledWith(principal)
+  })
+
+  it('search delegates to searchDocuments with spaceId + query', async () => {
+    const searchDocuments = vi.fn(async () => [{ path: 'context/x.md', snippet: 'hit' }])
+    const results = await new GitContextService(makeDeps({ searchDocuments })).search(principal, 's1', 'billing')
+    expect(results).toEqual([{ path: 'context/x.md', snippet: 'hit' }])
+    expect(searchDocuments).toHaveBeenCalledWith('s1', 'billing')
+  })
+
+  it('proposeUpdate remains not implemented (Phase 3)', async () => {
     await expect(
-      svc.proposeUpdate(principal, 's1', { path: 'context/x.md', content: 'y' }),
+      new GitContextService(makeDeps()).proposeUpdate(principal, 's1', { path: 'context/x.md', content: 'y' }),
     ).rejects.toBeInstanceOf(NotImplementedError)
   })
 })

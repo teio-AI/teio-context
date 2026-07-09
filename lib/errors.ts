@@ -29,6 +29,12 @@ export class ValidationError extends AppError {
   }
 }
 
+export class NotFoundError extends AppError {
+  constructor(message = 'not found') {
+    super(message, 'not_found', 404)
+  }
+}
+
 export class NotImplementedError extends AppError {
   constructor(feature: string, phase: string) {
     super(`${feature} is not implemented yet (${phase})`, 'not_implemented', 501)

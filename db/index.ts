@@ -1,6 +1,6 @@
 import type { MemberLookup } from '@/lib/auth/authorize'
 import type { TokenRow } from '@/lib/auth/principal'
-import type { Principal, Role } from '@/lib/context/types'
+import type { Principal, Role, SearchHit, SpaceSummary } from '@/lib/context/types'
 import type { SpaceRepoRef } from '@/lib/context/service'
 import { sql } from './client'
 
@@ -88,6 +88,52 @@ export async function findTokenByPrefix(prefix: string): Promise<TokenRow | null
     from api_tokens where token_prefix = ${prefix}
   `) as TokenRow[]
   return rows[0] ?? null
+}
+
+export async function touchTokenLastUsed(tokenId: string): Promise<void> {
+  await sql`update api_tokens set last_used_at = now() where id = ${tokenId}`
+}
+
+/** Spaces a Clerk user is a member of (share OUT: GET /api/spaces). */
+export async function listSpacesForUser(userId: string): Promise<SpaceSummary[]> {
+  const rows = (await sql`
+    select s.id, s.slug, s.name, sm.role
+    from spaces s
+    join space_members sm on sm.space_id = s.id
+    where sm.principal_type = 'user' and sm.principal_id = ${userId} and s.status = 'active'
+    order by s.name
+  `) as SpaceSummary[]
+  return rows
+}
+
+/**
+ * The single space a machine token can see — its own binding (api_tokens.space_id
+ * + role), not a space_members lookup (tokens are not mirrored into that table;
+ * see lib/auth/context.ts for why: one source of truth, no drift).
+ */
+export async function listSpacesForToken(tokenId: string): Promise<SpaceSummary[]> {
+  const rows = (await sql`
+    select s.id, s.slug, s.name, t.role
+    from api_tokens t
+    join spaces s on s.id = t.space_id
+    where t.id = ${tokenId} and t.revoked_at is null and s.status = 'active'
+  `) as SpaceSummary[]
+  return rows
+}
+
+/**
+ * Postgres FTS over the derived `documents` index (ARCHITECTURE §7.3).
+ * `websearch_to_tsquery` accepts free-text query syntax (quotes, -exclude, OR).
+ */
+export async function searchDocuments(spaceId: string, query: string, limit = 20): Promise<SearchHit[]> {
+  const rows = (await sql`
+    select path, title, snippet
+    from documents
+    where space_id = ${spaceId} and fts @@ websearch_to_tsquery('english', ${query})
+    order by ts_rank(fts, websearch_to_tsquery('english', ${query})) desc
+    limit ${limit}
+  `) as { path: string; title: string | null; snippet: string | null }[]
+  return rows.map((r) => ({ path: r.path, title: r.title ?? undefined, snippet: r.snippet ?? undefined }))
 }
 
 export async function insertAudit(entry: {

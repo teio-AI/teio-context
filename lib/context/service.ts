@@ -1,4 +1,4 @@
-import { NotImplementedError } from '../errors'
+import { GitHubError, NotFoundError, NotImplementedError } from '../errors'
 import type { GitHubApi } from '../github/client'
 import type { ContextService, DocumentRead, Principal, ProposeInput, SearchHit, SpaceSummary, WriteResult } from './types'
 
@@ -13,45 +13,75 @@ export interface ContextServiceDeps {
   loadSpaceRepo(spaceId: string): Promise<SpaceRepoRef>
   /** A GitHub client bound to the space's installation token. */
   clientFor(spaceId: string): Promise<GitHubApi>
+  /** Spaces a principal can see: the Neon space_members join (users) or the token's own binding. */
+  listSpacesForPrincipal(principal: Principal): Promise<SpaceSummary[]>
+  /** Postgres FTS over the derived `documents` index (tsvector + snippet, not full bodies). */
+  searchDocuments(spaceId: string, query: string): Promise<SearchHit[]>
+}
+
+/** Translate a GitHub 404 into our own NotFoundError; anything else rethrows unchanged. */
+async function translateGitHub404<T>(promise: Promise<T>, message: string): Promise<T> {
+  try {
+    return await promise
+  } catch (err) {
+    if (err instanceof GitHubError && err.status === 404) throw new NotFoundError(message)
+    throw err
+  }
 }
 
 /**
- * Phase 1 skeleton: the read path (getVersion, getDocument) is real; search and
- * the write path throw NotImplementedError until Phases 2-3. The interface is
- * complete so adapters can be written against it now.
+ * Phase 1 established the read path (getVersion, getDocument) and the write
+ * path skeleton (NotImplementedError). Phase 2 adds: listSpaces, search (via
+ * the derived FTS index, not GitHub), and dedupes getDocument's GitHub calls
+ * (it previously called getVersion internally, doubling loadSpaceRepo +
+ * clientFor + the ref lookup for every document read).
  */
 export class GitContextService implements ContextService {
   constructor(private readonly deps: ContextServiceDeps) {}
 
-  async listSpaces(_principal: Principal): Promise<SpaceSummary[]> {
-    // Backed by the Neon space_members join; wired in Phase 2.
-    throw new NotImplementedError('listSpaces', 'Phase 2')
+  async listSpaces(principal: Principal): Promise<SpaceSummary[]> {
+    return this.deps.listSpacesForPrincipal(principal)
   }
 
   async getVersion(_principal: Principal, spaceId: string): Promise<{ sha: string; updatedAt: string }> {
     const { owner, repo, defaultBranch } = await this.deps.loadSpaceRepo(spaceId)
     const gh = await this.deps.clientFor(spaceId)
-    const ref = await gh.request<{ object: { sha: string } }>(
-      'GET',
-      `/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`,
+    const ref = await translateGitHub404(
+      gh.request<{ object: { sha: string } }>('GET', `/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`),
+      'space repo or default branch not found',
     )
     return { sha: ref.data.object.sha, updatedAt: new Date().toISOString() }
   }
 
-  async getDocument(principal: Principal, spaceId: string, path: string): Promise<DocumentRead> {
+  async getDocument(_principal: Principal, spaceId: string, path: string): Promise<DocumentRead> {
     const { owner, repo, defaultBranch } = await this.deps.loadSpaceRepo(spaceId)
     const gh = await this.deps.clientFor(spaceId)
-    const res = await gh.request<{ content: string; encoding: string; sha: string }>(
-      'GET',
-      `/repos/${owner}/${repo}/contents/${encodeContentsPath(path)}?ref=${defaultBranch}`,
+
+    // Content (blob) and version (branch head) are independent GitHub calls —
+    // run them concurrently instead of the Phase 1 pattern of calling
+    // getVersion() as a nested, fully-redundant loadSpaceRepo+clientFor+fetch.
+    const [contentRes, refRes] = await Promise.all([
+      translateGitHub404(
+        gh.request<{ content: string; encoding: string; sha: string }>(
+          'GET',
+          `/repos/${owner}/${repo}/contents/${encodeContentsPath(path)}?ref=${defaultBranch}`,
+        ),
+        `path not found: ${path}`,
+      ),
+      translateGitHub404(
+        gh.request<{ object: { sha: string } }>('GET', `/repos/${owner}/${repo}/git/ref/heads/${defaultBranch}`),
+        'space repo or default branch not found',
+      ),
+    ])
+
+    const content = Buffer.from(contentRes.data.content, (contentRes.data.encoding as BufferEncoding) || 'base64').toString(
+      'utf8',
     )
-    const content = Buffer.from(res.data.content, (res.data.encoding as BufferEncoding) || 'base64').toString('utf8')
-    const version = await this.getVersion(principal, spaceId)
-    return { path, content, version: version.sha, blob: res.data.sha }
+    return { path, content, version: refRes.data.object.sha, blob: contentRes.data.sha }
   }
 
-  async search(_principal: Principal, _spaceId: string, _query: string): Promise<SearchHit[]> {
-    throw new NotImplementedError('search', 'Phase 2 (Postgres FTS)')
+  async search(_principal: Principal, spaceId: string, query: string): Promise<SearchHit[]> {
+    return this.deps.searchDocuments(spaceId, query)
   }
 
   async listProposals(_principal: Principal, _spaceId: string): Promise<unknown[]> {
