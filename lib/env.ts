@@ -7,6 +7,8 @@ const schema = z.object({
   GITHUB_ORG: z.string().min(1),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
   CLERK_SECRET_KEY: z.string().optional(),
+  /** Comma-separated Clerk user ids allowed to create spaces (lib/auth/staff.ts). */
+  STAFF_USER_IDS: z.string().optional(),
 })
 
 export type Env = z.infer<typeof schema>

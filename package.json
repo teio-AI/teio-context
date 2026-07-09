@@ -10,10 +10,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "migrate": "node db/migrate.ts"
+    "migrate": "node db/migrate.ts",
+    "mcp": "bun run mcp/server.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.20.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@neondatabase/serverless": "^0.10.4",
     "next": "^15.3.0",
     "react": "^19.1.0",
