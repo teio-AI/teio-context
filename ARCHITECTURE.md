@@ -360,7 +360,9 @@ MCP tools mirror the context-plane reads/writes. No admin over MCP in v1.
 
 ## 6. Auth, provisioning, and freshness
 
-**Humans (Clerk).** Reuse TEIO's Clerk instance. A session → `user` principal;
+**Humans (Clerk).** _Deploy decision (2026-07-10): teio-context runs its OWN
+Clerk application, not TEIO's — the two stay fully isolated (own login). Code is
+unchanged; only the Clerk env keys differ. See DEPLOY.md._ A session → `user` principal;
 role from `space_members`.
 
 **Machines (per-space tokens).** `tctx_<slug>_<random32>`; only `sha256` + 12-char

@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      # Build with placeholder env — nothing connects at build time (db client
+      # is lazy), this only exercises compilation + route/type validation.
+      - run: bun run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZXhhbXBsZS5jbGVyay5hY2NvdW50cy5kZXYk
+          CLERK_SECRET_KEY: sk_test_dummy
+          DATABASE_URL: postgresql://u:p@ep-x-pooler.dev.aws.neon.tech/db?sslmode=require
+          GITHUB_APP_ID: '1'
+          GITHUB_APP_PRIVATE_KEY: dummy
+          GITHUB_ORG: teio
