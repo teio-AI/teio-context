@@ -31,6 +31,8 @@ export interface SearchHit {
   path: string
   title?: string
   snippet?: string
+  /** Query-highlighted excerpt (matched terms wrapped in **). */
+  highlight?: string
 }
 
 export type WriteResult =
