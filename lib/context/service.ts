@@ -30,6 +30,7 @@ export interface AuditEntry {
   baseSha?: string | null
   resultSha?: string | null
   outcome: 'ok' | 'conflict' | 'denied' | 'error'
+  requestId?: string
 }
 
 export interface ContextServiceDeps {
@@ -150,10 +151,15 @@ export class GitContextService implements ContextService {
       { baseVersion: input.baseVersion, baseBlob: input.baseBlob },
       'upsert',
       input.path,
+      input.requestId,
     )
   }
 
-  async deletePath(principal: Principal, spaceId: string, input: { path: string; baseVersion?: string }): Promise<WriteResult> {
+  async deletePath(
+    principal: Principal,
+    spaceId: string,
+    input: { path: string; baseVersion?: string; requestId?: string },
+  ): Promise<WriteResult> {
     return this.runWrite(
       principal,
       spaceId,
@@ -161,13 +167,14 @@ export class GitContextService implements ContextService {
       { baseVersion: input.baseVersion },
       'delete',
       input.path,
+      input.requestId,
     )
   }
 
   async movePath(
     principal: Principal,
     spaceId: string,
-    input: { from: string; to: string; baseVersion?: string },
+    input: { from: string; to: string; baseVersion?: string; requestId?: string },
   ): Promise<WriteResult> {
     return this.runWrite(
       principal,
@@ -176,6 +183,7 @@ export class GitContextService implements ContextService {
       { baseVersion: input.baseVersion },
       'move',
       `${input.from} → ${input.to}`,
+      input.requestId,
     )
   }
 
@@ -186,6 +194,7 @@ export class GitContextService implements ContextService {
     base: { baseVersion?: string; baseBlob?: string },
     opKind: 'upsert' | 'delete' | 'move',
     auditPath: string,
+    requestId?: string,
   ): Promise<WriteResult> {
     const { owner, repo, defaultBranch } = await this.deps.loadSpaceRepo(spaceId)
     const gh = await this.deps.clientFor(spaceId)
@@ -197,7 +206,7 @@ export class GitContextService implements ContextService {
       change,
       { baseVersion: base.baseVersion, baseBlob: base.baseBlob, policy, author: authorFor(principal) },
     )
-    return this.persist(principal, spaceId, auditPath, base.baseVersion, result, opKind)
+    return this.persist(principal, spaceId, auditPath, base.baseVersion, result, opKind, requestId)
   }
 
   private async persist(
@@ -207,6 +216,7 @@ export class GitContextService implements ContextService {
     baseVersion: string | undefined,
     result: EngineResult,
     opKind: 'upsert' | 'delete' | 'move',
+    requestId?: string,
   ): Promise<WriteResult> {
     if (result.status === 'merged') {
       await this.deps.setCurrentSha(spaceId, result.version)
@@ -220,6 +230,7 @@ export class GitContextService implements ContextService {
         baseSha: baseVersion ?? null,
         resultSha: result.version,
         outcome: 'ok',
+        requestId,
       })
       return { status: 'merged', version: result.version }
     }
@@ -242,6 +253,7 @@ export class GitContextService implements ContextService {
       path,
       baseSha: result.baseSha,
       outcome: result.status === 'conflict' ? 'conflict' : 'ok',
+      requestId,
     })
     return { status: result.status, prUrl: result.prUrl, proposalId }
   }

@@ -76,7 +76,7 @@ describe('requireSpaceAccess', () => {
     await expect(requireSpaceAccess(reqWithAuth(`Bearer ${gen.token}`), 's2', 'reader', deps)).rejects.toBeInstanceOf(
       ForbiddenError,
     )
-    expect(auditDenied).toHaveBeenCalledWith('s2', { type: 'token', id: 't1' })
+    expect(auditDenied).toHaveBeenCalledWith('s2', { type: 'token', id: 't1' }, expect.any(String))
   })
 
   it('denies a token with insufficient role (no audit call throws)', async () => {
@@ -100,7 +100,7 @@ describe('requireSpaceAccess', () => {
     const deps = makeDeps({ getMemberRole: async () => null, auditDenied })
 
     await expect(requireSpaceAccess(reqWithAuth(), 's1', 'reader', deps)).rejects.toBeInstanceOf(ForbiddenError)
-    expect(auditDenied).toHaveBeenCalledWith('s1', { type: 'user', id: 'user_1' })
+    expect(auditDenied).toHaveBeenCalledWith('s1', { type: 'user', id: 'user_1' }, expect.any(String))
   })
 
   it('does not audit when there is no session at all (Unauthorized, not a space-scoped denial)', async () => {

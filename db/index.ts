@@ -240,6 +240,11 @@ export async function recordProposal(input: {
   return row.id
 }
 
+/** Liveness/readiness probe: throws if the DB is unreachable. */
+export async function ping(): Promise<void> {
+  await sql`select 1`
+}
+
 // ---- freshness / operations (Phase 5) ----
 
 export async function getSpaceByRepo(owner: string, repo: string): Promise<SpaceRow | null> {

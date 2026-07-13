@@ -3,6 +3,7 @@ import { higherRole, requiredRoleForPath } from '@/lib/auth/authorize'
 import { requireSpaceAccess } from '@/lib/auth/context'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
+import { getRequestId } from '@/lib/request-id'
 import { authzDeps, getContextService } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
@@ -28,7 +29,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
     const required = higherRole(requiredRoleForPath(from), requiredRoleForPath(to))
     const { principal } = await requireSpaceAccess(req, id, required, authzDeps)
-    const result = await getContextService().movePath(principal, id, { from, to, baseVersion: base_version })
+    const result = await getContextService().movePath(principal, id, { from, to, baseVersion: base_version, requestId: getRequestId(req) })
     return Response.json(result, { status: result.status === 'merged' ? 200 : 202 })
   } catch (err) {
     return toResponse(err)

@@ -37,6 +37,8 @@ export interface ProposeInput {
   content: string
   baseVersion?: string
   baseBlob?: string
+  /** Correlation id recorded in audit_log (lib/request-id.ts). */
+  requestId?: string
 }
 
 /**
@@ -50,10 +52,10 @@ export interface ContextService {
   search(principal: Principal, spaceId: string, query: string): Promise<SearchHit[]>
   listProposals(principal: Principal, spaceId: string): Promise<unknown[]>
   proposeUpdate(principal: Principal, spaceId: string, input: ProposeInput): Promise<WriteResult>
-  deletePath(principal: Principal, spaceId: string, input: { path: string; baseVersion?: string }): Promise<WriteResult>
+  deletePath(principal: Principal, spaceId: string, input: { path: string; baseVersion?: string; requestId?: string }): Promise<WriteResult>
   movePath(
     principal: Principal,
     spaceId: string,
-    input: { from: string; to: string; baseVersion?: string },
+    input: { from: string; to: string; baseVersion?: string; requestId?: string },
   ): Promise<WriteResult>
 }

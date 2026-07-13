@@ -9,6 +9,7 @@ import { GitHubClient } from '@/lib/github/client'
 import { getInstallationTokenProvider } from '@/lib/github/singleton'
 import { provisionSpaceRepo } from '@/lib/github/provision'
 import { toResponse } from '@/lib/http'
+import { getRequestId } from '@/lib/request-id'
 import { renderSpaceYaml } from '@/lib/space-yaml'
 import { authzDeps, getContextService } from '@/lib/wiring'
 import { resolvePrincipal } from '@/lib/auth/context'
@@ -75,7 +76,7 @@ export async function POST(req: Request): Promise<Response> {
       createdBy: userId,
     })
     await db.addMember(space.id, 'user', userId, 'owner', userId)
-    await db.insertAudit({ spaceId: space.id, actorType: 'user', actorId: userId, action: 'member_add', outcome: 'ok' })
+    await db.insertAudit({ spaceId: space.id, actorType: 'user', actorId: userId, action: 'member_add', outcome: 'ok', requestId: getRequestId(req) })
 
     return Response.json({ space, provisioning }, { status: 201 })
   } catch (err) {

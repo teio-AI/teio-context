@@ -4,6 +4,7 @@ import { requireSpaceAccess } from '@/lib/auth/context'
 import { generateToken } from '@/lib/auth/tokens'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
+import { getRequestId } from '@/lib/request-id'
 import { authzDeps } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
@@ -60,6 +61,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       action: 'token_issue',
       path: null,
       outcome: 'ok',
+      requestId: getRequestId(req),
     })
 
     // Shown exactly once — the caller must store it now; only the hash persists.
