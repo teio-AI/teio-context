@@ -86,11 +86,18 @@ wire, migrate, deploy, and smoke-test.
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk | `pk_…` |
 | `CLERK_SECRET_KEY` | Clerk | `sk_…` |
 | `STAFF_USER_IDS` | Clerk | your Clerk user id(s), comma-separated |
-| `GITHUB_APP_ID` | GitHub App | numeric |
-| `GITHUB_APP_PRIVATE_KEY` | GitHub App | PEM contents |
-| `GITHUB_ORG` | GitHub | the paid org login |
+| `GITHUB_APP_ID` | GitHub App | numeric — **optional until the App exists** |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App | PEM contents — **optional until the App exists** |
+| `GITHUB_ORG` | GitHub | the paid org login — **optional until the App exists** |
 | `GITHUB_WEBHOOK_SECRET` | you | long random; matches the App's webhook secret |
 | `CRON_SECRET` | you | long random; the backfill cron bearer |
+
+**Staged deploy (before the GitHub org/App exist):** set only `DATABASE_URL` +
+the Clerk vars + `STAFF_USER_IDS`, and **omit all `GITHUB_*`**. The app boots;
+DB/Clerk routes (list spaces, search, proposals, members, tokens) work; the
+GitHub-touching routes (create space, write, import) return a clean
+`503 github_unconfigured` until you add the three `GITHUB_*` values and redeploy.
+No placeholder values needed.
 
 ## Step 5 — Migrate + first space + smoke test
 
