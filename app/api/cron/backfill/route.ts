@@ -39,10 +39,16 @@ async function runBackfill(): Promise<void> {
 
       const head = await getBranchHead(gh, repo)
       if (head !== space.current_sha) {
-        await reindexAll(gh, repo, space.id, head)
+        const result = await reindexAll(gh, repo, space.id, head)
         await db.setCurrentSha(space.id, head)
         await db.markCursorsStale(space.id)
         await db.insertAudit({ spaceId: space.id, actorType: 'github', action: 'backfill', path: null, resultSha: head, outcome: 'ok' })
+        // GitHub capped the tree listing → this space is too large to fully
+        // index in one pass and is now under-indexed. Record it loudly rather
+        // than let search silently miss docs (no silent caps).
+        if (result.truncated) {
+          await db.insertAudit({ spaceId: space.id, actorType: 'github', action: 'index_truncated', path: null, resultSha: head, outcome: 'error' })
+        }
       }
 
       await reconcileProposals(gh, repo, space.id)
