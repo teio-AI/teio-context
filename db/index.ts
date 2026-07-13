@@ -223,10 +223,16 @@ export async function recordProposal(input: {
   prUrl: string
   status: 'proposal' | 'conflict'
 }): Promise<string> {
+  // The engine's write outcome ('proposal' | 'conflict') maps to the proposals
+  // table's lifecycle status: a proposal_only PR is 'open'; a conflict PR is
+  // 'conflict'. Both are "awaiting a human" (listOpenProposals selects both).
+  // 'proposal' is NOT a valid proposals.status — inserting it verbatim violates
+  // the CHECK constraint. (Caught by the DB integration test, not the mocks.)
+  const dbStatus = input.status === 'conflict' ? 'conflict' : 'open'
   const rows = (await sql`
     insert into proposals (space_id, actor_display, path, base_sha, branch_ref, pr_number, pr_url, status)
     values (${input.spaceId}, ${input.actorDisplay}, ${input.path}, ${input.baseSha}, ${input.branchRef},
-            ${input.prNumber}, ${input.prUrl}, ${input.status})
+            ${input.prNumber}, ${input.prUrl}, ${dbStatus})
     returning id
   `) as { id: string }[]
   const row = rows[0]

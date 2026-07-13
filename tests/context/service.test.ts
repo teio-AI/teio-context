@@ -37,7 +37,7 @@ function makeDeps(overrides: Partial<ContextServiceDeps> = {}): ContextServiceDe
     setCurrentSha: vi.fn(async () => {}),
     recordProposal: vi.fn(async () => 'prop-x'),
     audit: vi.fn(async () => {}),
-    botCommitter: { name: 'bot', email: 'bot@x' },
+    botCommitter: () => ({ name: 'bot', email: 'bot@x' }),
     ...overrides,
   }
 }
