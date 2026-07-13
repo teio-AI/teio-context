@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import * as db from '@/db'
-import { requiredRoleForPath } from '@/lib/auth/authorize'
+import { assertSafePath, requiredRoleForPath } from '@/lib/auth/authorize'
 import { requireSpaceAccess } from '@/lib/auth/context'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
@@ -31,6 +31,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params
     const path = new URL(req.url).searchParams.get('path')
     if (!path) throw new ValidationError('query param "path" is required')
+    assertSafePath(path) // reads must not traverse out of the repo either
 
     const { principal } = await requireSpaceAccess(req, id, 'reader', authzDeps)
     const doc = await getContextService().getDocument(principal, id, path)

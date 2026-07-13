@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { authorizeSpace, hasRole, higherRole, requiredRoleForPath } from '@/lib/auth/authorize'
+import { assertSafePath, authorizeSpace, hasRole, higherRole, requiredRoleForPath } from '@/lib/auth/authorize'
 import { ForbiddenError, ValidationError } from '@/lib/errors'
 import type { Role } from '@/lib/context/types'
+
+describe('assertSafePath', () => {
+  it('accepts normal relative paths', () => {
+    expect(() => assertSafePath('context/a.md')).not.toThrow()
+    expect(() => assertSafePath('space.yaml')).not.toThrow()
+    expect(() => assertSafePath('context/x/y.md')).not.toThrow()
+  })
+
+  it('rejects traversal, absolute, empty, and dot segments', () => {
+    for (const bad of ['', '/etc/passwd', 'context/../secret', '..', 'context/./a.md', 'context//a.md', ' context/a.md ']) {
+      expect(() => assertSafePath(bad)).toThrow(ValidationError)
+    }
+  })
+})
 
 describe('hasRole', () => {
   it('ranks reader < editor < owner', () => {
@@ -26,6 +40,10 @@ describe('requiredRoleForPath', () => {
     expect(requiredRoleForPath('space.yaml')).toBe('owner')
     expect(requiredRoleForPath('context/projects/x.md')).toBe('editor')
     expect(() => requiredRoleForPath('secrets.md')).toThrow(ValidationError)
+  })
+
+  it('rejects a traversal path that would escape the context/ sandbox', () => {
+    expect(() => requiredRoleForPath('context/../secrets.md')).toThrow(ValidationError)
   })
 })
 

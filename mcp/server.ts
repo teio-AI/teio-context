@@ -92,6 +92,21 @@ export function createServer(client: TeioContextClient): McpServer {
   )
 
   server.registerTool(
+    'list_proposals',
+    {
+      description: 'List open pull requests (proposals + conflicts) awaiting a human in a space.',
+      inputSchema: { spaceId: z.string().describe('The space id (from list_spaces).') },
+    },
+    async ({ spaceId }) => {
+      try {
+        return textResult(await client.listProposals(spaceId))
+      } catch (err) {
+        return errorResult(err)
+      }
+    },
+  )
+
+  server.registerTool(
     'propose_update',
     {
       description:

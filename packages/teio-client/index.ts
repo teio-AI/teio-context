@@ -101,6 +101,11 @@ export class TeioContextClient {
     return res.results
   }
 
+  async listProposals(spaceId: string): Promise<unknown[]> {
+    const res = await this.request<{ proposals: unknown[] }>('GET', `/api/spaces/${encodeURIComponent(spaceId)}/proposals`)
+    return res.proposals
+  }
+
   // ---- writes (update IN) ----
 
   async proposeUpdate(spaceId: string, input: ProposeInput): Promise<WriteResult> {
