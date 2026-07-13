@@ -2,7 +2,7 @@ import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import * as db from '@/db'
 import { ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors'
-import { getEnv, getPrivateKey } from '@/lib/env'
+import { getEnv, getGitHubConfig } from '@/lib/env'
 import { isStaff, parseStaffIds } from '@/lib/auth/staff'
 import { getOrgInstallationId } from '@/lib/github/app-auth'
 import { GitHubClient } from '@/lib/github/client'
@@ -51,15 +51,13 @@ export async function POST(req: Request): Promise<Response> {
     if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join('; '))
     const { slug, name } = parsed.data
 
-    const env = getEnv()
-    const key = getPrivateKey(env)
-    const appId = Number(env.GITHUB_APP_ID)
-    const org = env.GITHUB_ORG
+    // Throws a clean 503 github_unconfigured if the App env isn't set yet.
+    const { appId, privateKey, org } = getGitHubConfig()
 
     // getOrgInstallationId is a one-off App-JWT lookup (space creation is rare,
     // staff-only), not worth caching. The token exchange below IS cached — it's
     // reused across every read/write on every space (lib/github/singleton.ts).
-    const installationId = await getOrgInstallationId(appId, key, org)
+    const installationId = await getOrgInstallationId(appId, privateKey, org)
     const token = await getInstallationTokenProvider().getToken(installationId)
     const gh = new GitHubClient(token)
 

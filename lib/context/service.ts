@@ -57,8 +57,12 @@ export interface ContextServiceDeps {
   recordProposal(input: RecordProposalInput): Promise<string>
   /** Authoritative attribution + operability record (ARCHITECTURE §6). */
   audit(entry: AuditEntry): Promise<void>
-  /** The GitHub App bot identity stamped as commit committer. */
-  botCommitter: Identity
+  /**
+   * The GitHub App bot identity stamped as commit committer. A thunk, not a
+   * value: it's only called on a write, so constructing the service for a
+   * DB-only read never forces GitHub config to exist.
+   */
+  botCommitter: () => Identity
   /** Injectable branch-name factory (deterministic tests). */
   newBranchName?: () => string
 }
@@ -84,10 +88,12 @@ export function authorFor(principal: Principal): Identity {
  * (current_sha, proposals, audit) so the engine stays pure and testable.
  */
 export class GitContextService implements ContextService {
-  private readonly engine: WriteEngine
+  constructor(private readonly deps: ContextServiceDeps) {}
 
-  constructor(private readonly deps: ContextServiceDeps) {
-    this.engine = new WriteEngine({ committer: deps.botCommitter, newBranchName: deps.newBranchName })
+  /** Build the write engine on demand — resolves the bot committer (and thus
+   *  GitHub config) only when a write actually happens, not on construction. */
+  private writeEngine(): WriteEngine {
+    return new WriteEngine({ committer: this.deps.botCommitter(), newBranchName: this.deps.newBranchName })
   }
 
   async listSpaces(principal: Principal): Promise<SpaceSummary[]> {
@@ -185,7 +191,7 @@ export class GitContextService implements ContextService {
     const gh = await this.deps.clientFor(spaceId)
     const policy = await this.deps.resolveWritePolicy(spaceId, principal)
 
-    const result = await this.engine.write(
+    const result = await this.writeEngine().write(
       gh,
       { owner, repo, branch: defaultBranch },
       change,

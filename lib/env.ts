@@ -1,10 +1,14 @@
 import { z } from 'zod'
+import { AppError } from './errors'
 
 const schema = z.object({
   DATABASE_URL: z.string().url(),
-  GITHUB_APP_ID: z.string().min(1),
-  GITHUB_APP_PRIVATE_KEY: z.string().min(1),
-  GITHUB_ORG: z.string().min(1),
+  // GitHub App config is OPTIONAL at the env level so DB/Clerk-only paths boot
+  // before the App/org exists. Read it through getGitHubConfig(), which throws a
+  // clean 503 when it's missing rather than letting getEnv() reject every route.
+  GITHUB_APP_ID: z.string().min(1).optional(),
+  GITHUB_APP_PRIVATE_KEY: z.string().min(1).optional(),
+  GITHUB_ORG: z.string().min(1).optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
   CLERK_SECRET_KEY: z.string().optional(),
   /** Comma-separated Clerk user ids allowed to create spaces (lib/auth/staff.ts). */
@@ -23,12 +27,30 @@ export function getEnv(): Env {
   return cached
 }
 
+export interface GitHubConfig {
+  appId: number
+  privateKey: string
+  org: string
+}
+
 /**
- * GitHub App private keys are often stored with literal `\n` in env vars.
- * Normalize to real newlines so node:crypto can parse the PEM.
+ * The GitHub App config, or a clean `503 github_unconfigured` if it isn't set
+ * yet. Lets the DB/Clerk surface (list spaces, search, members, tokens) run
+ * before the paid org + App exist; only the GitHub-touching paths (provision,
+ * write, import) fail — and they fail loud and legible, not with a crypto crash.
+ * Private keys are often stored with literal `\n`; normalize to real newlines.
  */
-export function getPrivateKey(env = getEnv()): string {
-  return env.GITHUB_APP_PRIVATE_KEY.includes('\\n')
-    ? env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n')
-    : env.GITHUB_APP_PRIVATE_KEY
+export function getGitHubConfig(env: Env = getEnv()): GitHubConfig {
+  const { GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_ORG } = env
+  if (!GITHUB_APP_ID || !GITHUB_APP_PRIVATE_KEY || !GITHUB_ORG) {
+    throw new AppError(
+      'GitHub App is not configured (set GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, GITHUB_ORG)',
+      'github_unconfigured',
+      503,
+    )
+  }
+  const privateKey = GITHUB_APP_PRIVATE_KEY.includes('\\n')
+    ? GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n')
+    : GITHUB_APP_PRIVATE_KEY
+  return { appId: Number(GITHUB_APP_ID), privateKey, org: GITHUB_ORG }
 }

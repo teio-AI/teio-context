@@ -3,15 +3,19 @@ import type { AuthzDeps } from './auth/context'
 import { GitContextService } from './context/service'
 import type { ContextService, Principal } from './context/types'
 import { NotFoundError } from './errors'
-import { getEnv } from './env'
+import { getGitHubConfig } from './env'
 import { GitHubClient } from './github/client'
 import type { GitHubApi } from './github/client'
 import { getInstallationTokenProvider } from './github/singleton'
 import type { RepoRef, WritePolicy } from './context/write-engine'
 
-/** The GitHub App bot identity stamped as commit committer (author = the real actor). */
+/**
+ * The GitHub App bot identity stamped as commit committer (author = the real
+ * actor). Lazy: only invoked on a write, so DB-only reads never require the
+ * GitHub App to be configured (throws `github_unconfigured` if it isn't).
+ */
 export function getBotCommitter() {
-  const appId = getEnv().GITHUB_APP_ID
+  const { appId } = getGitHubConfig()
   return { name: 'teio-context[bot]', email: `${appId}+teio-context[bot]@users.noreply.github.com` }
 }
 
@@ -73,7 +77,9 @@ export function getContextService(): ContextService {
       setCurrentSha: db.setCurrentSha,
       recordProposal: db.recordProposal,
       audit: db.insertAudit,
-      botCommitter: getBotCommitter(),
+      // Passed as a thunk (not called here) so constructing the service for a
+      // DB-only read never forces GitHub config to exist.
+      botCommitter: getBotCommitter,
     })
   }
   return _contextService

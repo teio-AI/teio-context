@@ -1,19 +1,19 @@
-import { getEnv, getPrivateKey } from '../env'
+import { getGitHubConfig } from '../env'
 import { InstallationTokenProvider } from './app-auth'
 
 let _provider: InstallationTokenProvider | null = null
 
 /**
  * Process-wide cached installation-token provider. Constructing a fresh
- * InstallationTokenProvider per request (as Phase 1's POST /api/spaces did)
- * defeats its in-memory token cache — each request pays a full JWT mint +
- * token exchange instead of reusing the ~60min-lived token. Lazily built so
- * `next build` doesn't require GitHub env vars at import time.
+ * InstallationTokenProvider per request defeats its in-memory token cache, so
+ * every request would pay a full JWT mint + token exchange. Lazily built, and
+ * throws `github_unconfigured` (503) if the App env isn't set yet — so DB-only
+ * routes never touch this.
  */
 export function getInstallationTokenProvider(): InstallationTokenProvider {
   if (!_provider) {
-    const env = getEnv()
-    _provider = new InstallationTokenProvider(env.GITHUB_APP_ID, getPrivateKey(env))
+    const { appId, privateKey } = getGitHubConfig()
+    _provider = new InstallationTokenProvider(appId, privateKey)
   }
   return _provider
 }

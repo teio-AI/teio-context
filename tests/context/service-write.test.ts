@@ -51,7 +51,7 @@ function makeService(policy: WritePolicy, routes: Record<string, Stub>) {
     setCurrentSha,
     recordProposal,
     audit,
-    botCommitter: { name: 'bot', email: 'bot@x' },
+    botCommitter: () => ({ name: 'bot', email: 'bot@x' }),
     newBranchName: () => 'proposal/fixed',
   }
   return { svc: new GitContextService(deps), setCurrentSha, recordProposal, audit }
