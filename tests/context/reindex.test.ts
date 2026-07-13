@@ -116,4 +116,17 @@ describe('reindexAll', () => {
     expect(vi.mocked(db.upsertDocument).mock.calls[0]![0]).toMatchObject({ path: 'context/a.md' })
     expect(db.deleteDocument).toHaveBeenCalledWith('s1', 'context/stale.md') // pruned
   })
+
+  it('propagates GitHub tree truncation so the backfill can flag under-indexing', async () => {
+    vi.mocked(db.upsertDocument).mockClear()
+    vi.mocked(db.listDocumentPaths).mockResolvedValueOnce([])
+    const api = gh((_m, p) => {
+      if (p.includes('/git/commits/')) return { status: 200, data: { tree: { sha: 'T' } } }
+      if (p.includes('/git/trees/')) return { status: 200, data: { truncated: true, tree: [{ path: 'context/a.md', type: 'blob', sha: 'A' }] } }
+      if (p.includes('/git/blobs/')) return { status: 200, data: { content: b64('# A'), encoding: 'base64' } }
+      return { status: 404 }
+    })
+    const res = await reindexAll(api, REPO, 's1', 'SHA')
+    expect(res.truncated).toBe(true)
+  })
 })

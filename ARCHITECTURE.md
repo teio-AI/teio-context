@@ -557,6 +557,15 @@ adapters, webhook/backfill, Neon schema.
 3. **Orphan proposal-branch GC** — clean `proposal/*` with no open PR. (Phase 5.)
 4. **Per-space App installations** — separate rate buckets + harder isolation for
    busy/demanding spaces. (Triggered.)
+5. **`space.yaml` → Neon reconcile on push** — parse the manifest on push and sync
+   connector/policy into Neon (§2.1). **Deferred (2026-07-13):** Neon is already
+   authoritative, so this is low-urgency; it adds a YAML-parse dependency + drift
+   semantics best shaped once real spaces exist. Revisit when a space needs
+   git-native connector/policy edits.
+6. **Large-space paginated tree walk** — `reindexAll` flags GitHub's `truncated`
+   tree cap and the backfill now audits `index_truncated` (outcome=error) so
+   under-indexing isn't silent; a paginated/recursive walk is the real fix if a
+   space ever gets that big. (Triggered.)
 
 ---
 
