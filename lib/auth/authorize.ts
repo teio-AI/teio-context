@@ -32,12 +32,28 @@ export async function authorizeSpace(
 }
 
 /**
+ * Reject path traversal / malformed paths before they reach the GitHub Contents
+ * API, which could normalize `context/../x` OUT of the context/ sandbox. Applies
+ * to reads and writes. Enforces a relative, `.`/`..`-free, no-empty-segment path.
+ */
+export function assertSafePath(path: string): void {
+  if (!path || path !== path.trim() || path.startsWith('/')) {
+    throw new ValidationError('path must be a non-empty relative path')
+  }
+  if (path.split('/').some((seg) => seg === '' || seg === '.' || seg === '..')) {
+    throw new ValidationError('path may not contain empty, "." or ".." segments')
+  }
+}
+
+/**
  * Which role a write to `path` requires. space.yaml is an owner artifact
  * (owners/connectors/policy), so it needs owner even though it is writable
- * markup (finding #12). Everything else must live under context/.
+ * markup (finding #12). Everything else must live under context/. Also rejects
+ * traversal (assertSafePath) so a write can't escape the context/ sandbox.
  */
 export function requiredRoleForPath(path: string): Role {
+  assertSafePath(path)
   if (path === 'space.yaml') return 'owner'
-  if (path === 'context' || path.startsWith('context/')) return 'editor'
+  if (path.startsWith('context/')) return 'editor'
   throw new ValidationError(`path outside the write whitelist: ${path}`)
 }

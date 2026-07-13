@@ -39,6 +39,12 @@ describe('TeioContextClient — reads', () => {
     const results = await client.search('s1', 'billing')
     expect(results).toEqual([{ path: 'a.md', snippet: 's' }])
   })
+
+  it('listProposals unwraps { proposals }', async () => {
+    const fetchImpl = fetchReturning(200, { proposals: [{ id: 'p1', status: 'open' }] })
+    const client = new TeioContextClient('https://x.test', 'tok', fetchImpl)
+    expect(await client.listProposals('s1')).toEqual([{ id: 'p1', status: 'open' }])
+  })
 })
 
 describe('TeioContextClient — writes', () => {
