@@ -5,6 +5,7 @@ import { requireSpaceAccess } from '@/lib/auth/context'
 import { defaultPolicyForKind } from '@/lib/connectors'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
+import { getRequestId } from '@/lib/request-id'
 import { authzDeps } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
@@ -50,6 +51,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       action: 'connector_add',
       path: null,
       outcome: 'ok',
+      requestId: getRequestId(req),
     })
 
     return Response.json({ connector }, { status: 201 })

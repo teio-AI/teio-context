@@ -6,6 +6,7 @@ import { authorFor } from '@/lib/context/service'
 import { MAX_IMPORT_FILES, seedFiles } from '@/lib/context/import'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
+import { getRequestId } from '@/lib/request-id'
 import { authzDeps, clientForSpace, getBotCommitter, repoRefForSpace } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
@@ -46,6 +47,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
 
     const { principal } = await requireSpaceAccess(req, id, 'owner', authzDeps)
+    const requestId = getRequestId(req) // capture before the response returns; `req` outlives the handler in after()
 
     after(async () => {
       try {
@@ -61,10 +63,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           path: null,
           resultSha: sha,
           outcome: 'ok',
+          requestId,
         })
       } catch {
         await db
-          .insertAudit({ spaceId: id, actorType: principal.type, actorId: principal.id, action: 'import', path: null, outcome: 'error' })
+          .insertAudit({ spaceId: id, actorType: principal.type, actorId: principal.id, action: 'import', path: null, outcome: 'error', requestId })
           .catch(() => {})
       }
     })

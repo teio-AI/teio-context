@@ -2,6 +2,7 @@ import * as db from '@/db'
 import { requireSpaceAccess } from '@/lib/auth/context'
 import { NotFoundError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
+import { getRequestId } from '@/lib/request-id'
 import { authzDeps } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
@@ -15,7 +16,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string; 
     const revoked = await db.revokeToken(id, tid)
     if (!revoked) throw new NotFoundError('token not found or already revoked')
 
-    await db.insertAudit({ spaceId: id, actorType: principal.type, actorId: principal.id, action: 'token_revoke', path: null, outcome: 'ok' })
+    await db.insertAudit({ spaceId: id, actorType: principal.type, actorId: principal.id, action: 'token_revoke', path: null, outcome: 'ok', requestId: getRequestId(req) })
     return Response.json({ status: 'revoked', id: tid })
   } catch (err) {
     return toResponse(err)

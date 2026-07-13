@@ -4,6 +4,7 @@ import { assertSafePath, requiredRoleForPath } from '@/lib/auth/authorize'
 import { requireSpaceAccess } from '@/lib/auth/context'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
+import { getRequestId } from '@/lib/request-id'
 import type { WriteResult } from '@/lib/context/types'
 import { authzDeps, getContextService } from '@/lib/wiring'
 
@@ -37,7 +38,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const doc = await getContextService().getDocument(principal, id, path)
 
     await db
-      .insertAudit({ spaceId: id, actorType: principal.type, actorId: principal.id, action: 'read', path, outcome: 'ok' })
+      .insertAudit({ spaceId: id, actorType: principal.type, actorId: principal.id, action: 'read', path, outcome: 'ok', requestId: getRequestId(req) })
       .catch(() => {})
 
     return Response.json(doc)
@@ -63,6 +64,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       content,
       baseVersion: base_version,
       baseBlob: base_blob,
+      requestId: getRequestId(req),
     })
     return writeResponse(result)
   } catch (err) {
@@ -80,7 +82,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     const baseVersion = url.searchParams.get('base_version') ?? undefined
 
     const { principal } = await requireSpaceAccess(req, id, requiredRoleForPath(path), authzDeps)
-    const result = await getContextService().deletePath(principal, id, { path, baseVersion })
+    const result = await getContextService().deletePath(principal, id, { path, baseVersion, requestId: getRequestId(req) })
     return writeResponse(result)
   } catch (err) {
     return toResponse(err)

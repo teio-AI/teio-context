@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { ForbiddenError, UnauthorizedError } from '../errors'
 import type { Principal, Role } from '../context/types'
+import { getRequestId } from '../request-id'
 import { authorizeSpace, hasRole, type MemberLookup } from './authorize'
 import { resolveMachineToken, type TokenLookup } from './principal'
 
@@ -9,7 +10,7 @@ export interface AuthzDeps {
   getMemberRole: MemberLookup
   touchTokenLastUsed?: (tokenId: string) => Promise<void>
   /** Best-effort denial audit. Never allowed to mask the real error. */
-  auditDenied?: (spaceId: string, principal: Principal) => Promise<void>
+  auditDenied?: (spaceId: string, principal: Principal, requestId?: string) => Promise<void>
 }
 
 export interface ResolvedAuth {
@@ -49,12 +50,13 @@ export async function requireSpaceAccess(
   deps: AuthzDeps,
 ): Promise<{ principal: Principal; role: Role }> {
   const resolved = await resolvePrincipal(req, deps)
+  const requestId = getRequestId(req)
 
   if (resolved.tokenBinding) {
     const { spaceId: boundSpaceId, role } = resolved.tokenBinding
     const ok = boundSpaceId === spaceId && hasRole(role, required)
     if (!ok) {
-      await deps.auditDenied?.(spaceId, resolved.principal).catch(() => {})
+      await deps.auditDenied?.(spaceId, resolved.principal, requestId).catch(() => {})
       throw new ForbiddenError(
         boundSpaceId !== spaceId ? 'token is not valid for this space' : `requires role '${required}', token has '${role}'`,
       )
@@ -66,7 +68,7 @@ export async function requireSpaceAccess(
     const role = await authorizeSpace(deps.getMemberRole, resolved.principal, spaceId, required)
     return { principal: resolved.principal, role }
   } catch (err) {
-    if (err instanceof ForbiddenError) await deps.auditDenied?.(spaceId, resolved.principal).catch(() => {})
+    if (err instanceof ForbiddenError) await deps.auditDenied?.(spaceId, resolved.principal, requestId).catch(() => {})
     throw err
   }
 }

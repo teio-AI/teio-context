@@ -41,8 +41,8 @@ export const authzDeps: AuthzDeps = {
   findTokenByPrefix: db.findTokenByPrefix,
   getMemberRole: db.getMemberRole,
   touchTokenLastUsed: db.touchTokenLastUsed,
-  auditDenied: (spaceId, principal) =>
-    db.insertAudit({ spaceId, actorType: principal.type, actorId: principal.id, action: 'access_denied', outcome: 'denied' }),
+  auditDenied: (spaceId, principal, requestId) =>
+    db.insertAudit({ spaceId, actorType: principal.type, actorId: principal.id, action: 'access_denied', outcome: 'denied', requestId }),
 }
 
 /**
