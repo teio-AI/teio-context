@@ -29,7 +29,10 @@ export type WriteResult =
 export interface SearchHit {
   path: string
   title?: string
+  /** Static leading excerpt (first ~200 chars), for list display. */
   snippet?: string
+  /** Query-highlighted excerpt (matched terms wrapped in **), computed per query via ts_headline. */
+  highlight?: string
 }
 
 export interface ProposeInput {

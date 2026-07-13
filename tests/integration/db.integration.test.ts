@@ -95,6 +95,22 @@ describe.skipIf(!shouldRun)('db integration (real Postgres)', () => {
     expect(await db.listDocumentPaths(spaceId)).toEqual(['context/onboard.md'])
   })
 
+  it('ts_headline: highlight wraps a matched term found in the snippet', async () => {
+    await db.upsertDocument({
+      spaceId,
+      path: 'context/hl.md',
+      title: 'HL',
+      snippet: 'how we bill invoices monthly',
+      body: 'how we bill invoices monthly and reconcile them',
+      contentSha: 'h1',
+      commitSha: 'c1',
+    })
+    const [hit] = await db.searchDocuments(spaceId, 'invoices')
+    expect(hit?.path).toBe('context/hl.md')
+    expect(hit?.highlight).toContain('**invoices**') // matched term highlighted
+    await db.deleteDocument(spaceId, 'context/hl.md')
+  })
+
   it('proposals: record (proposal_only → open) → listOpen → resolveByPr', async () => {
     // Passing the engine outcome 'proposal' must land as a valid 'open' row —
     // inserting 'proposal' verbatim would violate the status CHECK constraint.

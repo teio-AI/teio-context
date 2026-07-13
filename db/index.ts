@@ -145,16 +145,31 @@ export async function listSpacesForToken(tokenId: string): Promise<SpaceSummary[
 /**
  * Postgres FTS over the derived `documents` index (ARCHITECTURE §7.3).
  * `websearch_to_tsquery` accepts free-text query syntax (quotes, -exclude, OR).
+ *
+ * `highlight` is a per-query excerpt with matched terms wrapped in ** (via
+ * ts_headline). It runs over the stored 200-char `snippet`, NOT the document
+ * body — the body deliberately never lands in Neon (§2.2 blast radius), so a
+ * match that lives deeper than the snippet highlights nothing (see the search
+ * route note / ARCHITECTURE §7.3 for the bounded-headline-source upgrade path).
  */
 export async function searchDocuments(spaceId: string, query: string, limit = 20): Promise<SearchHit[]> {
   const rows = (await sql`
-    select path, title, snippet
+    select path, title, snippet,
+      ts_headline(
+        'english', coalesce(snippet, ''), websearch_to_tsquery('english', ${query}),
+        'StartSel=**, StopSel=**, MaxFragments=1, MaxWords=25, MinWords=8'
+      ) as highlight
     from documents
     where space_id = ${spaceId} and fts @@ websearch_to_tsquery('english', ${query})
     order by ts_rank(fts, websearch_to_tsquery('english', ${query})) desc
     limit ${limit}
-  `) as { path: string; title: string | null; snippet: string | null }[]
-  return rows.map((r) => ({ path: r.path, title: r.title ?? undefined, snippet: r.snippet ?? undefined }))
+  `) as { path: string; title: string | null; snippet: string | null; highlight: string | null }[]
+  return rows.map((r) => ({
+    path: r.path,
+    title: r.title ?? undefined,
+    snippet: r.snippet ?? undefined,
+    highlight: r.highlight ?? undefined,
+  }))
 }
 
 export interface ConnectorRow {
