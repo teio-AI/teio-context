@@ -35,6 +35,12 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message = 'conflict') {
+    super(message, 'conflict', 409)
+  }
+}
+
 export class NotImplementedError extends AppError {
   constructor(feature: string, phase: string) {
     super(`${feature} is not implemented yet (${phase})`, 'not_implemented', 501)

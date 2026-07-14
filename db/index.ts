@@ -50,6 +50,11 @@ export async function getSpaceById(id: string): Promise<SpaceRow | null> {
   return rows[0] ?? null
 }
 
+export async function getSpaceBySlug(slug: string): Promise<SpaceRow | null> {
+  const rows = (await sql`select * from spaces where slug = ${slug}`) as SpaceRow[]
+  return rows[0] ?? null
+}
+
 export async function loadSpaceRepo(id: string): Promise<SpaceRepoRef> {
   const space = await getSpaceById(id)
   if (!space) throw new Error(`space not found: ${id}`)
