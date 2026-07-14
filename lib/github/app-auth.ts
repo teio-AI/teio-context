@@ -36,18 +36,24 @@ async function safeText(res: Response): Promise<string> {
   }
 }
 
-/** Resolve the installation id for an org (the App must be installed there). */
-export async function getOrgInstallationId(
+/**
+ * Resolve the installation id for the account that owns space repos. Works for
+ * an org (`/orgs/{owner}/installation`) or a personal account
+ * (`/users/{owner}/installation`) — the latter is the free dev-mode path.
+ */
+export async function getInstallationId(
   appId: string | number,
   privateKeyPem: string,
-  org: string,
+  owner: string,
+  ownerType: 'org' | 'user' = 'org',
   fetchImpl: FetchImpl = fetch,
 ): Promise<number> {
   const jwt = makeAppJwt(appId, privateKeyPem)
-  const res = await fetchImpl(`${API_BASE}/orgs/${org}/installation`, {
+  const path = ownerType === 'user' ? `/users/${owner}/installation` : `/orgs/${owner}/installation`
+  const res = await fetchImpl(`${API_BASE}${path}`, {
     headers: { ...GH_HEADERS, Authorization: `Bearer ${jwt}` },
   })
-  if (!res.ok) throw new GitHubError(res.status, await safeText(res), `GET /orgs/${org}/installation`)
+  if (!res.ok) throw new GitHubError(res.status, await safeText(res), `GET ${path}`)
   const json = (await res.json()) as { id: number }
   return json.id
 }

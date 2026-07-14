@@ -4,7 +4,7 @@ import * as db from '@/db'
 import { ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors'
 import { getEnv, getGitHubConfig } from '@/lib/env'
 import { isStaff, parseStaffIds } from '@/lib/auth/staff'
-import { getOrgInstallationId } from '@/lib/github/app-auth'
+import { getInstallationId } from '@/lib/github/app-auth'
 import { GitHubClient } from '@/lib/github/client'
 import { getInstallationTokenProvider } from '@/lib/github/singleton'
 import { provisionSpaceRepo } from '@/lib/github/provision'
@@ -53,18 +53,25 @@ export async function POST(req: Request): Promise<Response> {
     const { slug, name } = parsed.data
 
     // Throws a clean 503 github_unconfigured if the App env isn't set yet.
-    const { appId, privateKey, org } = getGitHubConfig()
+    const { appId, privateKey, org, ownerType, visibility } = getGitHubConfig()
 
-    // getOrgInstallationId is a one-off App-JWT lookup (space creation is rare,
-    // staff-only), not worth caching. The token exchange below IS cached — it's
-    // reused across every read/write on every space (lib/github/singleton.ts).
-    const installationId = await getOrgInstallationId(appId, privateKey, org)
+    // A one-off App-JWT lookup (space creation is rare, staff-only), not worth
+    // caching. The token exchange below IS cached — reused across every
+    // read/write on every space (lib/github/singleton.ts).
+    const installationId = await getInstallationId(appId, privateKey, org, ownerType)
     const token = await getInstallationTokenProvider().getToken(installationId)
     const gh = new GitHubClient(token)
 
     const repo = `teio-context-${slug}`
     const spaceYaml = renderSpaceYaml({ name, slug, owner: userId })
-    const provisioning = await provisionSpaceRepo(gh, { owner: org, repo, appId, spaceYaml })
+    const provisioning = await provisionSpaceRepo(gh, {
+      owner: org,
+      ownerType,
+      repo,
+      appId,
+      spaceYaml,
+      private: visibility === 'private',
+    })
 
     const space = await db.createSpace({
       slug,

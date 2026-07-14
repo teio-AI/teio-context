@@ -9,6 +9,10 @@ const schema = z.object({
   GITHUB_APP_ID: z.string().min(1).optional(),
   GITHUB_APP_PRIVATE_KEY: z.string().min(1).optional(),
   GITHUB_ORG: z.string().min(1).optional(),
+  // Dev-mode knobs: run on a personal account with public repos (free) before
+  // the paid org exists. Default to the prod-safe org + private.
+  GITHUB_OWNER_TYPE: z.enum(['org', 'user']).optional(),
+  GITHUB_REPO_VISIBILITY: z.enum(['public', 'private']).optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
   CLERK_SECRET_KEY: z.string().optional(),
   /** Comma-separated Clerk user ids allowed to create spaces (lib/auth/staff.ts). */
@@ -30,7 +34,10 @@ export function getEnv(): Env {
 export interface GitHubConfig {
   appId: number
   privateKey: string
+  /** The account (org login, or personal username when ownerType is 'user') that owns space repos. */
   org: string
+  ownerType: 'org' | 'user'
+  visibility: 'public' | 'private'
 }
 
 /**
@@ -52,5 +59,11 @@ export function getGitHubConfig(env: Env = getEnv()): GitHubConfig {
   const privateKey = GITHUB_APP_PRIVATE_KEY.includes('\\n')
     ? GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n')
     : GITHUB_APP_PRIVATE_KEY
-  return { appId: Number(GITHUB_APP_ID), privateKey, org: GITHUB_ORG }
+  return {
+    appId: Number(GITHUB_APP_ID),
+    privateKey,
+    org: GITHUB_ORG,
+    ownerType: env.GITHUB_OWNER_TYPE ?? 'org',
+    visibility: env.GITHUB_REPO_VISIBILITY ?? 'private',
+  }
 }

@@ -7,6 +7,8 @@ const base: Env = {
   GITHUB_APP_ID: undefined,
   GITHUB_APP_PRIVATE_KEY: undefined,
   GITHUB_ORG: undefined,
+  GITHUB_OWNER_TYPE: undefined,
+  GITHUB_REPO_VISIBILITY: undefined,
   GITHUB_WEBHOOK_SECRET: undefined,
   CLERK_SECRET_KEY: undefined,
   STAFF_USER_IDS: undefined,
@@ -29,7 +31,7 @@ describe('getGitHubConfig', () => {
     expect(() => getGitHubConfig({ ...base, GITHUB_APP_ID: '5', GITHUB_ORG: 'teio' })).toThrow(/not configured/)
   })
 
-  it('returns parsed config and normalizes an escaped-newline private key', () => {
+  it('returns parsed config and normalizes an escaped-newline private key; defaults org+private', () => {
     const cfg = getGitHubConfig({
       ...base,
       GITHUB_APP_ID: '4256555',
@@ -39,5 +41,20 @@ describe('getGitHubConfig', () => {
     expect(cfg.appId).toBe(4256555)
     expect(cfg.org).toBe('teio')
     expect(cfg.privateKey).toBe('-----BEGIN-----\nline\n-----END-----') // \n unescaped
+    expect(cfg.ownerType).toBe('org') // prod-safe defaults
+    expect(cfg.visibility).toBe('private')
+  })
+
+  it('honors dev-mode owner/visibility overrides', () => {
+    const cfg = getGitHubConfig({
+      ...base,
+      GITHUB_APP_ID: '1',
+      GITHUB_APP_PRIVATE_KEY: 'k',
+      GITHUB_ORG: 'ravi-teio',
+      GITHUB_OWNER_TYPE: 'user',
+      GITHUB_REPO_VISIBILITY: 'public',
+    })
+    expect(cfg.ownerType).toBe('user')
+    expect(cfg.visibility).toBe('public')
   })
 })
