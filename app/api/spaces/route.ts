@@ -1,7 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import * as db from '@/db'
-import { ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors'
+import { ConflictError, ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors'
 import { getEnv, getGitHubConfig } from '@/lib/env'
 import { isStaff, parseStaffIds } from '@/lib/auth/staff'
 import { getInstallationId } from '@/lib/github/app-auth'
@@ -55,6 +55,13 @@ export async function POST(req: Request): Promise<Response> {
     // Throws a clean 503 github_unconfigured if the App env isn't set yet.
     const { appId, privateKey, org, ownerType, visibility } = getGitHubConfig()
 
+    // Pre-check the slug BEFORE we touch GitHub. `spaces.slug` is unique, so a
+    // dup would otherwise fail only at the Neon insert — after the repo is
+    // already provisioned — orphaning that repo and surfacing an opaque 500.
+    if (await db.getSpaceBySlug(slug)) {
+      throw new ConflictError(`a space with slug "${slug}" already exists`)
+    }
+
     // A one-off App-JWT lookup (space creation is rare, staff-only), not worth
     // caching. The token exchange below IS cached — reused across every
     // read/write on every space (lib/github/singleton.ts).
@@ -73,15 +80,24 @@ export async function POST(req: Request): Promise<Response> {
       private: visibility === 'private',
     })
 
-    const space = await db.createSpace({
-      slug,
-      name,
-      owner: org,
-      repo,
-      installationId,
-      currentSha: provisioning.mainSha,
-      createdBy: userId,
-    })
+    // Register in Neon. If this fails, the repo was just created (only the
+    // space.yaml seed) and would be orphaned — a retry with the same slug would
+    // then hit a GitHub 422. Roll it back best-effort so create stays retryable.
+    let space: Awaited<ReturnType<typeof db.createSpace>>
+    try {
+      space = await db.createSpace({
+        slug,
+        name,
+        owner: org,
+        repo,
+        installationId,
+        currentSha: provisioning.mainSha,
+        createdBy: userId,
+      })
+    } catch (err) {
+      await gh.request('DELETE', `/repos/${org}/${repo}`).catch(() => {})
+      throw err
+    }
     await db.addMember(space.id, 'user', userId, 'owner', userId)
     await db.insertAudit({ spaceId: space.id, actorType: 'user', actorId: userId, action: 'member_add', outcome: 'ok', requestId: getRequestId(req) })
 
