@@ -3,7 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 export interface GeneratedToken {
   /** Full plaintext token — shown to the caller ONCE, never stored. */
   token: string
-  /** First 12 chars, stored for lookup + display. */
+  /** `tctx_<slug>_<8 random chars>`, stored for lookup + display. */
   prefix: string
   /** sha256(token) hex — the only thing persisted. */
   hash: string
@@ -16,8 +16,18 @@ export function generateToken(slug: string): GeneratedToken {
   return { token, prefix: tokenPrefix(token), hash: hashToken(token) }
 }
 
+/**
+ * The stored/lookup prefix: `tctx_<slug>_` plus the first 8 chars of the random
+ * suffix. It MUST include random entropy — the slug repeats across every token
+ * a space issues, so a slug-only prefix would collide on `unique (token_prefix)`
+ * and let a space hold only one token. The slug is validated to contain no
+ * underscore, so the second `_` (the first is in `tctx_`) marks the random
+ * suffix start.
+ */
 export function tokenPrefix(token: string): string {
-  return token.slice(0, 12)
+  const sep = token.indexOf('_', 5)
+  if (sep === -1) return token.slice(0, 20)
+  return token.slice(0, sep + 9) // slug separator + 8 random chars
 }
 
 export function hashToken(token: string): string {
