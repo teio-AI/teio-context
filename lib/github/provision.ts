@@ -10,6 +10,8 @@ export interface ProvisionParams {
   appId: number
   /** Initial space.yaml contents to seed. */
   spaceYaml: string
+  /** Repo visibility. Default private (prod). Dev on a free account uses public so rulesets are free. */
+  private?: boolean
 }
 
 export interface ProvisionResult {
@@ -33,7 +35,7 @@ export async function provisionSpaceRepo(gh: GitHubApi, p: ProvisionParams): Pro
   const createPath = p.ownerType === 'user' ? '/user/repos' : `/orgs/${p.owner}/repos`
   await gh.request('POST', createPath, {
     name: p.repo,
-    private: true,
+    private: p.private ?? true,
     auto_init: true, // seeds README + creates `main` (finding #3: main must exist before protection)
     description: 'teio-context space',
   })

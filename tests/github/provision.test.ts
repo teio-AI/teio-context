@@ -77,4 +77,20 @@ describe('provisionSpaceRepo', () => {
       provisionSpaceRepo(api, { owner: 'ravi', repo: 'x', appId: 1, spaceYaml: '' }),
     ).rejects.toBeInstanceOf(FreeTierProtectionError)
   })
+
+  it('dev mode: creates a PUBLIC repo under a USER account (/user/repos, private:false)', async () => {
+    const { api, calls } = fakeGh((m, p) => {
+      if (m === 'POST' && p.endsWith('/repos')) return { status: 201, data: {} }
+      if (m === 'PUT' && p.includes('/contents/space.yaml')) return { status: 201, data: {} }
+      if (m === 'POST' && p.endsWith('/rulesets')) return { status: 201, data: { id: 1 } }
+      if (m === 'GET' && p.includes('/git/ref/heads/main')) return { status: 200, data: { object: { sha: 's' } } }
+      throw new Error(`unexpected ${m} ${p}`)
+    })
+
+    await provisionSpaceRepo(api, { owner: 'ravi-teio', ownerType: 'user', repo: 'r', appId: 1, spaceYaml: '', private: false })
+
+    const create = calls.find((c) => c.path.endsWith('/repos'))!
+    expect(create.path).toBe('/user/repos') // user account, not /orgs/...
+    expect((create.body as { private: boolean }).private).toBe(false) // public → rulesets free
+  })
 })
