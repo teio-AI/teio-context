@@ -44,24 +44,36 @@ wire, migrate, deploy, and smoke-test.
    spaces.
 4. Hand me those three values.
 
-## Dev mode — GitHub without the paid org (public repos on a personal account)
+## Dev mode — GitHub without the paid org (a FREE org + public repos)
 
-The paid org is required only for **private-repo** rulesets. Rulesets are **free
-on public repos**, so before the org exists you can run full end-to-end on a
-**personal account with public repos** (the Phase 0 spike proved every piece in
-this exact config). Only compromise: dev space repos are world-readable — use
+The **paid** org is required only for **private-repo** rulesets. Rulesets are
+**free on public repos**, so before the paid org exists you can run full
+end-to-end on a **free org with public repos** — verified live in this exact
+config (org repo create → ruleset + App bypass → CAS merge → FTS → proposal PR →
+delete). Only compromise: dev space repos are world-readable — use
 throwaway/non-sensitive content.
 
-1. Create the GitHub App under your **personal account** (Settings → Developer
-   settings → GitHub Apps → New) with the same permissions/events as Step 3.
-2. Install it on your account.
-3. Set env:
-   - `GITHUB_ORG` = your username (e.g. `ravi-teio`)
-   - `GITHUB_OWNER_TYPE="user"`
+> ⚠️ **Not a personal account.** GitHub Apps **cannot** create repos on a
+> personal (user) account — `POST /user/repos` returns
+> `403 Resource not accessible by integration`. Repo creation only works against
+> an **org** (`POST /orgs/{org}/repos`). A *free* org is enough; it costs
+> nothing. So dev mode uses `GITHUB_OWNER_TYPE="org"` too — the only real knob
+> vs. production is public repos.
+
+1. Create a **free GitHub org** (github.com → New organization → Free plan).
+2. Create/reuse the GitHub App (Settings → Developer settings → GitHub Apps) with
+   the same permissions/events as Step 3, incl. **Administration: Read & write**
+   (needed to create repos + rulesets). If the App is owned by a personal
+   account, set its install scope to **"Any account"** so it can install on the org.
+3. **Install the App on the org** with "All repositories".
+4. Set env:
+   - `GITHUB_ORG` = the free org login (e.g. `teio-context-dev`)
+   - `GITHUB_OWNER_TYPE="org"`
    - `GITHUB_REPO_VISIBILITY="public"`
    - plus `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` as usual.
-4. Switching to Tarush's paid org later: set `GITHUB_ORG` to the org, drop the two
-   dev knobs (back to org + private), reinstall the App there, redeploy. **No code change.**
+5. Switching to Tarush's paid org later: set `GITHUB_ORG` to that org, drop
+   `GITHUB_REPO_VISIBILITY` (back to private), reinstall the App there, redeploy.
+   **No code change.**
 
 ## Step 3 — GitHub org + App (gated on the org; do when ready with Tarush)
 
