@@ -1,6 +1,7 @@
 import * as db from '@/db'
 import type { AuthzDeps } from './auth/context'
 import { GitContextService } from './context/service'
+import { reindexChangedPaths } from './context/reindex'
 import type { ContextService, Principal } from './context/types'
 import { NotFoundError } from './errors'
 import { getGitHubConfig } from './env'
@@ -75,6 +76,9 @@ export function getContextService(): ContextService {
       clientFor: clientForSpace,
       resolveWritePolicy,
       setCurrentSha: db.setCurrentSha,
+      reindexChanged: (gh, repo, spaceId, changed, commitSha) =>
+        reindexChangedPaths(gh, repo, spaceId, changed, commitSha),
+      markCursorsStale: db.markCursorsStale,
       recordProposal: db.recordProposal,
       audit: db.insertAudit,
       // Passed as a thunk (not called here) so constructing the service for a

@@ -54,6 +54,21 @@ export interface ContextServiceDeps {
   resolveWritePolicy(spaceId: string, principal: Principal): Promise<WritePolicy>
   /** Persist the new main HEAD after a merged write (O(1) staleness). */
   setCurrentSha(spaceId: string, sha: string): Promise<void>
+  /**
+   * Update the derived FTS index for the paths a merged write changed. The write
+   * path MUST do this itself: it eagerly advances current_sha, which makes the
+   * push webhook (and backfill cron) dedup out — so if the writer didn't index
+   * its own change, API/MCP writes would never reach search.
+   */
+  reindexChanged(
+    gh: GitHubApi,
+    repo: { owner: string; repo: string; branch: string },
+    spaceId: string,
+    changed: { upserted: string[]; removed: string[] },
+    commitSha: string,
+  ): Promise<unknown>
+  /** Mark consumer sync cursors stale after a merged write (freshness-out). */
+  markCursorsStale(spaceId: string): Promise<void>
   /** Record a PR-backed proposal (proposal_only or conflict). Returns the proposal id. */
   recordProposal(input: RecordProposalInput): Promise<string>
   /** Authoritative attribution + operability record (ARCHITECTURE §6). */
@@ -81,6 +96,18 @@ async function translateGitHub404<T>(promise: Promise<T>, message: string): Prom
 /** Stamp the real actor as the git author (audit_log remains the authoritative record). */
 export function authorFor(principal: Principal): Identity {
   return { name: principal.display ?? principal.id, email: `${principal.id}@users.noreply.teio-context` }
+}
+
+/** The paths a write touched, as reindex's {upserted, removed} (a move is both). */
+function changedPaths(change: WriteChange): { upserted: string[]; removed: string[] } {
+  switch (change.kind) {
+    case 'upsert':
+      return { upserted: [change.path], removed: [] }
+    case 'delete':
+      return { upserted: [], removed: [change.path] }
+    case 'move':
+      return { upserted: [change.to], removed: [change.from] }
+  }
 }
 
 /**
@@ -206,7 +233,11 @@ export class GitContextService implements ContextService {
       change,
       { baseVersion: base.baseVersion, baseBlob: base.baseBlob, policy, author: authorFor(principal) },
     )
-    return this.persist(principal, spaceId, auditPath, base.baseVersion, result, opKind, requestId)
+    return this.persist(principal, spaceId, auditPath, base.baseVersion, result, opKind, requestId, {
+      gh,
+      repo: { owner, repo, branch: defaultBranch },
+      changed: changedPaths(change),
+    })
   }
 
   private async persist(
@@ -216,10 +247,23 @@ export class GitContextService implements ContextService {
     baseVersion: string | undefined,
     result: EngineResult,
     opKind: 'upsert' | 'delete' | 'move',
-    requestId?: string,
+    requestId: string | undefined,
+    sync: { gh: GitHubApi; repo: { owner: string; repo: string; branch: string }; changed: { upserted: string[]; removed: string[] } },
   ): Promise<WriteResult> {
     if (result.status === 'merged') {
-      await this.deps.setCurrentSha(spaceId, result.version)
+      // Update ALL derived state, THEN advance current_sha last, so current_sha
+      // means "everything is reconciled to here." If any step fails after the
+      // git commit landed, the write is still durable in git and current_sha
+      // stays behind — the backfill cron (head != current_sha) reconciles the
+      // index + cursors. So a derived-state hiccup never fails a committed write
+      // and never silently drops it from search.
+      try {
+        await this.deps.reindexChanged(sync.gh, sync.repo, spaceId, sync.changed, result.version)
+        await this.deps.markCursorsStale(spaceId)
+        await this.deps.setCurrentSha(spaceId, result.version)
+      } catch {
+        // swallowed: git write succeeded; cron reconciles derived state
+      }
       const action = opKind === 'upsert' ? (result.viaFastPath ? 'cas_write' : 'merge') : opKind
       await this.deps.audit({
         spaceId,
