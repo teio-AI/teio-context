@@ -35,6 +35,8 @@ function makeDeps(overrides: Partial<ContextServiceDeps> = {}): ContextServiceDe
     // Write deps (unused by the read-path tests below; see service-write.test.ts).
     resolveWritePolicy: vi.fn(async () => 'auto_merge_clean' as const),
     setCurrentSha: vi.fn(async () => {}),
+    reindexChanged: vi.fn(async () => ({ indexed: 0, removed: 0 })),
+    markCursorsStale: vi.fn(async () => {}),
     recordProposal: vi.fn(async () => 'prop-x'),
     audit: vi.fn(async () => {}),
     botCommitter: () => ({ name: 'bot', email: 'bot@x' }),

@@ -41,6 +41,8 @@ function makeService(policy: WritePolicy, routes: Record<string, Stub>) {
   const setCurrentSha = vi.fn(async () => {})
   const recordProposal = vi.fn(async () => 'prop-1')
   const audit = vi.fn(async () => {})
+  const reindexChanged = vi.fn(async () => ({ indexed: 1, removed: 0 }))
+  const markCursorsStale = vi.fn(async () => {})
   const deps: ContextServiceDeps = {
     loadSpaceRepo: async () => ({ owner: 'teio', repo: 'teio-context-acme', defaultBranch: 'main' }),
     clientFor: async () => gh(routes),
@@ -49,24 +51,37 @@ function makeService(policy: WritePolicy, routes: Record<string, Stub>) {
     listOpenProposals: async () => [],
     resolveWritePolicy: async () => policy,
     setCurrentSha,
+    reindexChanged,
+    markCursorsStale,
     recordProposal,
     audit,
     botCommitter: () => ({ name: 'bot', email: 'bot@x' }),
     newBranchName: () => 'proposal/fixed',
   }
-  return { svc: new GitContextService(deps), setCurrentSha, recordProposal, audit }
+  return { svc: new GitContextService(deps), setCurrentSha, recordProposal, audit, reindexChanged, markCursorsStale }
 }
 
 const principal = { type: 'user', id: 'user_1' } as const
 
 describe('GitContextService write persistence', () => {
-  it('upsert fast-path merged → setCurrentSha + audit(cas_write)', async () => {
-    const { svc, setCurrentSha, recordProposal, audit } = makeService('auto_merge_clean', {
+  it('upsert fast-path merged → reindex + markCursorsStale + setCurrentSha + audit(cas_write)', async () => {
+    const { svc, setCurrentSha, recordProposal, audit, reindexChanged, markCursorsStale } = makeService('auto_merge_clean', {
       'PUT /contents/': { status: 200, data: { commit: { sha: 'CAS' } } },
     })
     const res = await svc.proposeUpdate(principal, 's1', { path: 'context/a.md', content: 'hi', baseBlob: 'B0' })
 
     expect(res).toEqual({ status: 'merged', version: 'CAS' })
+    // Regression: a merged API write MUST update the derived FTS index itself —
+    // it advances current_sha, which dedups the push webhook out, so if it
+    // didn't reindex here the write would never reach search.
+    expect(reindexChanged).toHaveBeenCalledWith(
+      expect.anything(),
+      { owner: 'teio', repo: 'teio-context-acme', branch: 'main' },
+      's1',
+      { upserted: ['context/a.md'], removed: [] },
+      'CAS',
+    )
+    expect(markCursorsStale).toHaveBeenCalledWith('s1')
     expect(setCurrentSha).toHaveBeenCalledWith('s1', 'CAS')
     expect(recordProposal).not.toHaveBeenCalled()
     expect(audit).toHaveBeenCalledWith(
@@ -74,11 +89,14 @@ describe('GitContextService write persistence', () => {
     )
   })
 
-  it('proposal_only → recordProposal + audit(propose) + returns proposalId', async () => {
-    const { svc, setCurrentSha, recordProposal, audit } = makeService('proposal_only', ok3way)
+  it('proposal_only → no derived-state update; recordProposal + audit(propose) + proposalId', async () => {
+    const { svc, setCurrentSha, recordProposal, audit, reindexChanged, markCursorsStale } = makeService('proposal_only', ok3way)
     const res = await svc.proposeUpdate(principal, 's1', { path: 'context/a.md', content: 'hi', baseVersion: 'BASE' })
 
     expect(res).toEqual({ status: 'proposal', prUrl: 'https://gh/pr/9', proposalId: 'prop-1' })
+    // A proposal doesn't touch main, so nothing is reindexed/staled/advanced.
+    expect(reindexChanged).not.toHaveBeenCalled()
+    expect(markCursorsStale).not.toHaveBeenCalled()
     expect(setCurrentSha).not.toHaveBeenCalled()
     expect(recordProposal).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'proposal', branchRef: 'refs/heads/proposal/fixed', prNumber: 9 }),
@@ -86,13 +104,34 @@ describe('GitContextService write persistence', () => {
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'propose', outcome: 'ok' }))
   })
 
-  it('delete merged → audit action is "delete" (not cas_write/merge)', async () => {
-    const { svc, setCurrentSha, audit } = makeService('auto_merge_clean', ok3way)
+  it('delete merged → reindex removes the path; audit action is "delete"', async () => {
+    const { svc, setCurrentSha, audit, reindexChanged } = makeService('auto_merge_clean', ok3way)
     const res = await svc.deletePath(principal, 's1', { path: 'context/a.md', baseVersion: 'BASE' })
 
     expect(res).toEqual({ status: 'merged', version: 'MERGED' })
+    expect(reindexChanged).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      's1',
+      { upserted: [], removed: ['context/a.md'] },
+      'MERGED',
+    )
     expect(setCurrentSha).toHaveBeenCalledWith('s1', 'MERGED')
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'delete', resultSha: 'MERGED' }))
+  })
+
+  it('merged write survives a reindex failure (durable git write, current_sha left for cron)', async () => {
+    const { svc, setCurrentSha, audit, reindexChanged } = makeService('auto_merge_clean', {
+      'PUT /contents/': { status: 200, data: { commit: { sha: 'CAS' } } },
+    })
+    reindexChanged.mockRejectedValueOnce(new Error('neon blip'))
+    const res = await svc.proposeUpdate(principal, 's1', { path: 'context/a.md', content: 'hi', baseBlob: 'B0' })
+
+    // The commit landed, so the write still succeeds; current_sha is NOT advanced
+    // (stays behind so the backfill cron reconciles the index).
+    expect(res).toEqual({ status: 'merged', version: 'CAS' })
+    expect(setCurrentSha).not.toHaveBeenCalled()
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({ action: 'cas_write', outcome: 'ok' }))
   })
 
   it('conflict → recordProposal(conflict) + audit(conflict_pr, outcome conflict)', async () => {
