@@ -269,6 +269,15 @@ export async function listDocumentPaths(spaceId: string): Promise<string[]> {
   return rows.map((r) => r.path)
 }
 
+/** The project's context documents (from the derived index) for the UI browser. */
+export async function listDocuments(
+  spaceId: string,
+): Promise<{ path: string; title: string | null; snippet: string | null; updated_at: string }[]> {
+  return (await sql`
+    select path, title, snippet, updated_at from documents where space_id = ${spaceId} order by path
+  `) as { path: string; title: string | null; snippet: string | null; updated_at: string }[]
+}
+
 export interface ProposalRow {
   id: string
   space_id: string

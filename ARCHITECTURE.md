@@ -20,6 +20,53 @@ The spike added two **hard requirements** that are load-bearing for the whole be
 
 ---
 
+## 0. Current model (as built — supersedes the connector-centric details below)
+
+> The system evolved during build. **This section is authoritative;** §§2–5 below
+> capture the original v1 design rationale (some now historical, e.g. connectors).
+
+**Store & engine** — unchanged from the design: one git repo per **space**
+(project) is the source of truth; Neon is the control plane (registry, members,
+tokens, audit, rebuildable FTS index). The write engine is the GitHub-API 3-way
+merge (§3.2): **auto-merge by default**, and a true conflict always opens a PR.
+
+**Roles.**
+- **Owner** — *global* role (carried by `STAFF_USER_IDS`). The only role that
+  creates spaces; is **admin on every space** and **sees every project**, member
+  row or not (so a project can never become invisible/orphaned). Not a per-space
+  member row; not removable.
+- Per-space members: **admin** (manage members/tokens/settings + write
+  `space.yaml`), **editor** (read + write `context/**`), **reader** (read).
+  A space's creator is auto-added as its admin. Removal is blocked for the last
+  admin and for a global Owner.
+
+**People join by EMAIL invite.** An admin/Owner invites an email → a
+`pending_invitations` row + a Clerk invitation email (redirect → `/sign-up`, which
+consumes the ticket and creates the account). On the invitee's next authenticated
+load, `/api/me` **reconciles** their *verified* email against pending invites and
+materializes the membership. Cancel/re-invite revokes the Clerk invitation.
+
+**Tokens (connectors removed).** There is no `connectors`/`sync_cursors`
+subsystem. A token is per-space and carries its own write policy:
+- **Member-owned token** — any member mints their own (for their agent/MCP);
+  `user_id` set, role **follows their current membership** (resolved at auth).
+- **Service token** — admin-minted for a non-human consumer; explicit
+  reader/editor role.
+- **`proposal_only`** flag (opt-in "require review") → that token's writes open a
+  PR instead of auto-merging. Default off. Members see + revoke their own tokens;
+  admins see + revoke all. Revocation is immediate.
+- Effective write policy (`lib/wiring.resolveWritePolicy`): `proposal_only` if the
+  token has the flag, else `auto_merge_clean`; human (Clerk) writes always
+  auto-merge. Migrations `0004` (roles + invites) and `0005` (drop connectors, add
+  `api_tokens.user_id` + `proposal_only`).
+
+**Surfaces.** Clerk-gated dashboard (`/dashboard`, `/spaces/[id]` with Overview /
+**Context** (browse docs) / Members / Tokens / History) + the REST API + the MCP
+server (`packages/teio-context-mcp`, run via `npx teio-context-mcp`). Deployed on
+Vercel + Neon + a GitHub App.
+
+---
+
 ## 1. System overview
 
 ```

@@ -1,0 +1,19 @@
+{
+  "name": "teio-context-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for teio-context — read/write a project's shared context over the teio-context API.",
+  "type": "module",
+  "bin": {
+    "teio-context-mcp": "dist/server.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "bun build ../../mcp/server.ts --target=node --outfile dist/server.js && chmod +x dist/server.js",
+    "prepublishOnly": "bun run build"
+  }
+}

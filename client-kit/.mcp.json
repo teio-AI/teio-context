@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "teio-context": {
-      "command": "bun",
-      "args": ["run", "/ABSOLUTE/PATH/TO/teio-context/mcp/server.ts"],
+      "command": "npx",
+      "args": ["-y", "teio-context-mcp"],
       "env": {
         "TEIO_CONTEXT_API_URL": "https://teio-context.vercel.app",
         "TEIO_CONTEXT_TOKEN": "tctx_REPLACE_WITH_YOUR_PROJECT_TOKEN"

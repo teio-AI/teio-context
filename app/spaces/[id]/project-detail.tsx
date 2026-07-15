@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Shell } from '../../shell'
 
 type Role = 'admin' | 'editor' | 'reader'
-type Tab = 'overview' | 'members' | 'tokens' | 'history'
+type Tab = 'overview' | 'context' | 'members' | 'tokens' | 'history'
 
 interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string; email?: string | null; is_owner?: boolean }
 interface Pending { id: string; email: string; role: string; created_at: string }
@@ -29,6 +29,8 @@ export default function ProjectDetail({ id }: { id: string }) {
   const [members, setMembers] = useState<Member[]>([])
   const [pending, setPending] = useState<Pending[]>([])
   const [tokens, setTokens] = useState<TokenMeta[]>([])
+  const [docs, setDocs] = useState<{ path: string; title: string | null; updated_at: string }[]>([])
+  const [openDoc, setOpenDoc] = useState<{ path: string; content: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const isAdmin = role === 'admin'
 
@@ -46,12 +48,18 @@ export default function ProjectDetail({ id }: { id: string }) {
   }, [id])
   const loadMembers = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/members`); if (d) { setMembers(d.members ?? []); setPending(d.pending ?? []) } }, [id])
   const loadTokens = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/tokens`); if (d) setTokens(d.tokens ?? []) }, [id])
+  const loadDocs = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/documents`); if (d) setDocs(d.documents ?? []) }, [id])
+  const openDocument = useCallback(async (path: string) => {
+    const d = await getJSON(`/api/spaces/${id}/context?path=${encodeURIComponent(path)}`)
+    if (d) setOpenDoc({ path, content: d.content ?? '' })
+  }, [id])
 
   useEffect(() => { void loadCore() }, [loadCore])
   useEffect(() => {
     if (tab === 'members') void loadMembers()
     if (tab === 'tokens') void loadTokens()
-  }, [tab, loadMembers, loadTokens])
+    if (tab === 'context') void loadDocs()
+  }, [tab, loadMembers, loadTokens, loadDocs])
 
   async function mutate(url: string, method: string, body?: unknown): Promise<any> {
     setErr(null)
@@ -60,7 +68,7 @@ export default function ProjectDetail({ id }: { id: string }) {
     return r.status === 204 ? {} : r.json().catch(() => ({}))
   }
 
-  const tabs: Tab[] = ['overview', 'members', 'tokens', 'history']
+  const tabs: Tab[] = ['overview', 'context', 'members', 'tokens', 'history']
 
   return (
     <Shell>
@@ -88,6 +96,36 @@ export default function ProjectDetail({ id }: { id: string }) {
           <Stat label="Open proposals" value={stats?.open_proposals ?? '…'} />
           <Stat label="Version" value={stats?.current_sha ? stats.current_sha.slice(0, 8) : '—'} />
           <Stat label="Last updated" value={<span style={{ fontSize: 13 }}>{fmt(stats?.last_updated ?? null)}</span>} />
+        </div>
+      )}
+
+      {tab === 'context' && (
+        <div className="stack">
+          <div className="card">
+            <table className="table">
+              <thead><tr><th>Document</th><th>Path</th><th>Updated</th></tr></thead>
+              <tbody>
+                {docs.map((d) => (
+                  <tr key={d.path} style={{ cursor: 'pointer' }} onClick={() => openDocument(d.path)}>
+                    <td>{d.title ?? d.path.split('/').pop()}</td>
+                    <td className="muted"><code>{d.path}</code></td>
+                    <td className="muted">{fmt(d.updated_at)}</td>
+                  </tr>
+                ))}
+                {docs.length === 0 && <tr><td className="muted" colSpan={3}>No context yet. Writes via the API/MCP or an agent&apos;s /teio-start appear here.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {openDoc && (
+            <div className="card card-pad">
+              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
+                <strong><code>{openDoc.path}</code></strong>
+                <button className="btn btn-sm" onClick={() => setOpenDoc(null)}>Close</button>
+              </div>
+              <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 13, background: 'var(--bg-subtle)', padding: 14, borderRadius: 8, margin: 0, maxHeight: 480, overflow: 'auto' }}>{openDoc.content}</pre>
+            </div>
+          )}
+          <p className="faint">Context is markdown stored in git. This is the read view; agents/services write it via the API/MCP.</p>
         </div>
       )}
 
