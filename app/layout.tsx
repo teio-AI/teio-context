@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ClerkProvider } from '@clerk/nextjs'
+import './globals.css'
 
 export const metadata = {
   title: 'teio-context',
