@@ -144,7 +144,7 @@ export default function ProjectDetail({ id }: { id: string }) {
         <div className="stack">
           {/* Any member can mint their OWN token (for their agent/MCP). Only admins
               get the service-token option + the full token list/revoke below. */}
-          <form className="card card-pad" onSubmit={async (e) => { e.preventDefault(); const body: Record<string, unknown> = { name: tokName, proposalOnly: tokReview }; if (isAdmin && tokService) body.role = tokRole; const r = await mutate(`/api/spaces/${id}/tokens`, 'POST', body); if (r?.token) { setNewToken(r.token); setTokName(''); if (isAdmin) void loadTokens() } }}>
+          <form className="card card-pad" onSubmit={async (e) => { e.preventDefault(); const body: Record<string, unknown> = { name: tokName, proposalOnly: tokReview }; if (isAdmin && tokService) body.role = tokRole; const r = await mutate(`/api/spaces/${id}/tokens`, 'POST', body); if (r?.token) { setNewToken(r.token); setTokName(''); void loadTokens() } }}>
             <div className="row">
               <input className="input" style={{ flex: 1 }} value={tokName} onChange={(e) => setTokName(e.target.value)} placeholder="Token name — e.g. my-agent" />
               {isAdmin && tokService && (
@@ -174,27 +174,25 @@ export default function ProjectDetail({ id }: { id: string }) {
               </div>
             </div>
           )}
-          {isAdmin ? (
-            <div className="card">
-              <table className="table">
-                <thead><tr><th>Name</th><th>Role</th><th>Writes</th><th>Last used</th><th>Created</th><th /></tr></thead>
-                <tbody>
-                  {tokens.map((t) => (
-                    <tr key={t.id} style={{ opacity: t.revoked_at ? 0.45 : 1 }}>
-                      <td>{t.name}</td>
-                      <td className="muted">{t.role ?? (t.user_id ? 'member' : '—')}</td>
-                      <td>{t.proposal_only ? <span className="tag tag-editor">review → PR</span> : <span className="muted">auto-merge</span>}</td>
-                      <td className="muted">{fmt(t.last_used_at)}</td><td className="muted">{fmt(t.created_at)}</td>
-                      <td style={{ textAlign: 'right' }}>{t.revoked_at ? <span className="faint">revoked</span> : <button className="btn btn-sm btn-danger" onClick={async () => { if (confirm('Revoke token?')) { await mutate(`/api/spaces/${id}/tokens/${t.id}`, 'DELETE'); void loadTokens() } }}>Revoke</button>}</td>
-                    </tr>
-                  ))}
-                  {tokens.length === 0 && <tr><td className="muted" colSpan={6}>No tokens yet.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="faint">Generate a token above for your agent/MCP, and copy it once. Ask an admin to view or revoke existing tokens.</p>
-          )}
+          <div className="section-label">{isAdmin ? 'All tokens' : 'Your tokens'}</div>
+          <div className="card">
+            <table className="table">
+              <thead><tr><th>Name</th><th>Role</th><th>Writes</th><th>Last used</th><th>Created</th><th /></tr></thead>
+              <tbody>
+                {tokens.map((t) => (
+                  <tr key={t.id} style={{ opacity: t.revoked_at ? 0.45 : 1 }}>
+                    <td>{t.name}</td>
+                    <td className="muted">{t.role ?? (t.user_id ? 'member' : '—')}</td>
+                    <td>{t.proposal_only ? <span className="tag tag-editor">review → PR</span> : <span className="muted">auto-merge</span>}</td>
+                    <td className="muted">{fmt(t.last_used_at)}</td><td className="muted">{fmt(t.created_at)}</td>
+                    <td style={{ textAlign: 'right' }}>{t.revoked_at ? <span className="faint">revoked</span> : <button className="btn btn-sm btn-danger" onClick={async () => { if (confirm('Revoke this token? Anything using it stops working immediately.')) { await mutate(`/api/spaces/${id}/tokens/${t.id}`, 'DELETE'); void loadTokens() } }}>Revoke</button>}</td>
+                  </tr>
+                ))}
+                {tokens.length === 0 && <tr><td className="muted" colSpan={6}>No tokens yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          {!isAdmin && <p className="faint">You see and can revoke tokens you created. Admins manage all tokens.</p>}
         </div>
       )}
 

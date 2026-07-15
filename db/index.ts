@@ -318,6 +318,16 @@ export async function revokeToken(spaceId: string, tokenId: string): Promise<boo
   return rows.length > 0
 }
 
+/** Revoke a token only if the caller created it (member self-service revoke). */
+export async function revokeOwnToken(spaceId: string, tokenId: string, createdBy: string): Promise<boolean> {
+  const rows = (await sql`
+    update api_tokens set revoked_at = now()
+    where id = ${tokenId} and space_id = ${spaceId} and created_by = ${createdBy} and revoked_at is null
+    returning id
+  `) as { id: string }[]
+  return rows.length > 0
+}
+
 export async function insertAudit(entry: {
   spaceId: string | null
   actorType: string
@@ -378,14 +388,23 @@ export interface TokenMetaRow {
   expires_at: string | null
 }
 
-/** Token metadata for the UI — NEVER the hash or plaintext. */
-export async function listTokensMeta(spaceId: string): Promise<TokenMetaRow[]> {
-  return (await sql`
-    select id, name, role, user_id, proposal_only, token_prefix, created_by, created_at,
-           last_used_at, revoked_at, expires_at
-    from api_tokens where space_id = ${spaceId}
-    order by created_at desc
-  `) as TokenMetaRow[]
+/**
+ * Token metadata for the UI — NEVER the hash or plaintext. Pass `createdBy` to
+ * scope to a single member's own tokens (non-admins); omit for all (admins).
+ */
+export async function listTokensMeta(spaceId: string, createdBy?: string): Promise<TokenMetaRow[]> {
+  const rows = createdBy
+    ? await sql`
+        select id, name, role, user_id, proposal_only, token_prefix, created_by, created_at,
+               last_used_at, revoked_at, expires_at
+        from api_tokens where space_id = ${spaceId} and created_by = ${createdBy}
+        order by created_at desc`
+    : await sql`
+        select id, name, role, user_id, proposal_only, token_prefix, created_by, created_at,
+               last_used_at, revoked_at, expires_at
+        from api_tokens where space_id = ${spaceId}
+        order by created_at desc`
+  return rows as TokenMetaRow[]
 }
 
 export interface AuditRow {

@@ -12,6 +12,8 @@ const h = vi.hoisted(() => ({
   fetchUserEmails: vi.fn(async (): Promise<Record<string, string>> => ({ user_a: 'a@co.com' })),
   listMembers: vi.fn(async () => [{ id: 'm1', principal_type: 'user', principal_id: 'user_a', role: 'admin', created_by: 'user_a', created_at: 't' }]),
   removeMember: vi.fn(async () => true),
+  revokeToken: vi.fn(async () => true),
+  revokeOwnToken: vi.fn(async () => true),
   addMember: vi.fn(async () => ({ id: 'm9' })),
   createPendingInvitation: vi.fn(async () => ({ id: 'inv1' })),
   cancelPendingInvitation: vi.fn(async (): Promise<{ clerk_invitation_id: string | null } | null> => ({ clerk_invitation_id: 'clerk_inv_1' })),
@@ -36,6 +38,7 @@ vi.mock('@/lib/wiring', () => ({
 }))
 vi.mock('@/db', () => ({
   listMembers: h.listMembers, removeMember: h.removeMember, addMember: h.addMember,
+  revokeToken: h.revokeToken, revokeOwnToken: h.revokeOwnToken,
   createPendingInvitation: h.createPendingInvitation, listPendingInvitations: h.listPendingInvitations,
   listPendingForEmail: h.listPendingForEmail, deletePendingInvitationById: h.deletePendingInvitationById,
   listTokensMeta: h.listTokensMeta, getActivityStats: h.getActivityStats,
@@ -47,6 +50,7 @@ vi.mock('@/db', () => ({
 import { GET as membersGET, POST as membersPOST } from '@/app/api/spaces/[id]/members/route'
 import { DELETE as memberDELETE } from '@/app/api/spaces/[id]/members/[mid]/route'
 import { GET as tokensGET, POST as tokensPOST } from '@/app/api/spaces/[id]/tokens/route'
+import { DELETE as tokenDELETE } from '@/app/api/spaces/[id]/tokens/[tid]/route'
 import { DELETE as inviteDELETE } from '@/app/api/spaces/[id]/invitations/[inviteId]/route'
 import { GET as activityGET } from '@/app/api/spaces/[id]/activity/route'
 import { GET as meGET } from '@/app/api/me/route'
@@ -135,9 +139,27 @@ describe('dashboard endpoints', () => {
     expect(JSON.stringify(body)).not.toContain('tctx_x_ab_') // only the prefix, never a full token
   })
 
-  it('GET tokens → 403 for editor (admin-only)', async () => {
+  it('GET tokens → editor sees their OWN tokens (scoped by creator)', async () => {
     h.getMemberRole.mockResolvedValue('editor')
-    expect((await tokensGET(req('/api/spaces/s1/tokens'), ctx)).status).toBe(403)
+    const res = await tokensGET(req('/api/spaces/s1/tokens'), ctx)
+    expect(res.status).toBe(200)
+    expect(h.listTokensMeta).toHaveBeenCalledWith('s1', 'user_a') // scoped to the caller
+  })
+
+  it('DELETE token → admin revokes ANY token (revokeToken)', async () => {
+    h.getMemberRole.mockResolvedValue('admin')
+    const res = await tokenDELETE(req('/api/spaces/s1/tokens/tk1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', tid: 'tk1' }) })
+    expect(res.status).toBe(200)
+    expect(h.revokeToken).toHaveBeenCalledWith('s1', 'tk1')
+    expect(h.revokeOwnToken).not.toHaveBeenCalled()
+  })
+
+  it('DELETE token → non-admin can only revoke their OWN (revokeOwnToken)', async () => {
+    h.getMemberRole.mockResolvedValue('editor')
+    const res = await tokenDELETE(req('/api/spaces/s1/tokens/tk1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', tid: 'tk1' }) })
+    expect(res.status).toBe(200)
+    expect(h.revokeOwnToken).toHaveBeenCalledWith('s1', 'tk1', 'user_a')
+    expect(h.revokeToken).not.toHaveBeenCalled()
   })
 
   it('POST tokens: a reader CANNOT mint a service editor token (403, no escalation)', async () => {
