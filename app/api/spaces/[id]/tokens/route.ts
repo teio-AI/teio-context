@@ -3,6 +3,8 @@ import * as db from '@/db'
 import { requireSpaceAccess } from '@/lib/auth/context'
 import { hasRole } from '@/lib/auth/authorize'
 import { generateToken } from '@/lib/auth/tokens'
+import { getEnv } from '@/lib/env'
+import { fetchUserEmails } from '@/lib/invitations'
 import { ForbiddenError, ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
 import { getRequestId } from '@/lib/request-id'
@@ -20,7 +22,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params
     const { principal, role } = await requireSpaceAccess(req, id, 'reader', authzDeps)
     const tokens = hasRole(role, 'admin') ? await db.listTokensMeta(id) : await db.listTokensMeta(id, principal.id)
-    return Response.json({ tokens })
+
+    // Resolve the owner's email so two same-named tokens are distinguishable.
+    const secretKey = getEnv().CLERK_SECRET_KEY
+    const ownerIds = tokens.map((t) => t.user_id ?? t.created_by).filter((v): v is string => !!v)
+    const emails = secretKey && ownerIds.length ? await fetchUserEmails(ownerIds, secretKey) : {}
+    const enriched = tokens.map((t) => ({ ...t, owner_email: emails[t.user_id ?? t.created_by] ?? null }))
+    return Response.json({ tokens: enriched })
   } catch (err) {
     return toResponse(err)
   }

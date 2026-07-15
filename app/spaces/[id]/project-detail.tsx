@@ -6,9 +6,9 @@ import { Shell } from '../../shell'
 type Role = 'admin' | 'editor' | 'reader'
 type Tab = 'overview' | 'members' | 'tokens' | 'history'
 
-interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string; email?: string | null }
+interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string; email?: string | null; is_owner?: boolean }
 interface Pending { id: string; email: string; role: string; created_at: string }
-interface TokenMeta { id: string; name: string; role: string | null; user_id: string | null; proposal_only: boolean; token_prefix: string; created_at: string; last_used_at: string | null; revoked_at: string | null }
+interface TokenMeta { id: string; name: string; role: string | null; user_id: string | null; proposal_only: boolean; token_prefix: string; created_at: string; last_used_at: string | null; revoked_at: string | null; owner_email?: string | null }
 interface AuditEvent { id: string; ts: string; actor_type: string; actor_display: string | null; actor_id: string | null; action: string; path: string | null; outcome: string }
 interface Stats { current_sha: string | null; last_updated: string | null; writes_7d: number; docs: number; open_proposals: number }
 
@@ -112,8 +112,8 @@ export default function ProjectDetail({ id }: { id: string }) {
                 {members.map((m) => (
                   <tr key={m.id}>
                     <td>{m.email ? <span>{m.email}</span> : <code>{m.principal_id}</code>}{m.email && <div className="faint" style={{ fontSize: 11 }}>{m.principal_id}</div>}</td><td className="muted">{m.principal_type}</td>
-                    <td><span className={`tag tag-${m.role}`}>{m.role}</span></td><td className="muted">{fmt(m.created_at)}</td>
-                    {isAdmin && <td style={{ textAlign: 'right' }}><button className="btn btn-sm btn-danger" onClick={async () => { if (confirm('Remove member?')) { await mutate(`/api/spaces/${id}/members/${m.id}`, 'DELETE'); void loadMembers() } }}>Remove</button></td>}
+                    <td>{m.is_owner ? <span className="tag tag-admin">owner</span> : <span className={`tag tag-${m.role}`}>{m.role}</span>}</td><td className="muted">{fmt(m.created_at)}</td>
+                    {isAdmin && <td style={{ textAlign: 'right' }}>{m.is_owner ? <span className="faint">—</span> : <button className="btn btn-sm btn-danger" onClick={async () => { if (confirm('Remove member?')) { await mutate(`/api/spaces/${id}/members/${m.id}`, 'DELETE'); void loadMembers() } }}>Remove</button>}</td>}
                   </tr>
                 ))}
                 {members.length === 0 && <tr><td className="muted" colSpan={5}>No members.</td></tr>}
@@ -177,14 +177,15 @@ export default function ProjectDetail({ id }: { id: string }) {
           <div className="section-label">{isAdmin ? 'All tokens' : 'Your tokens'}</div>
           <div className="card">
             <table className="table">
-              <thead><tr><th>Name</th><th>Role</th><th>Writes</th><th>Last used</th><th>Created</th><th /></tr></thead>
+              <thead><tr><th>Name</th><th>Owner</th><th>Role</th><th>Writes</th><th>Last used</th><th /></tr></thead>
               <tbody>
                 {tokens.map((t) => (
                   <tr key={t.id} style={{ opacity: t.revoked_at ? 0.45 : 1 }}>
                     <td>{t.name}</td>
+                    <td className="muted">{t.owner_email ?? (t.user_id ? '—' : 'service')}</td>
                     <td className="muted">{t.role ?? (t.user_id ? 'member' : '—')}</td>
                     <td>{t.proposal_only ? <span className="tag tag-editor">review → PR</span> : <span className="muted">auto-merge</span>}</td>
-                    <td className="muted">{fmt(t.last_used_at)}</td><td className="muted">{fmt(t.created_at)}</td>
+                    <td className="muted">{fmt(t.last_used_at)}</td>
                     <td style={{ textAlign: 'right' }}>{t.revoked_at ? <span className="faint">revoked</span> : <button className="btn btn-sm btn-danger" onClick={async () => { if (confirm('Revoke this token? Anything using it stops working immediately.')) { await mutate(`/api/spaces/${id}/tokens/${t.id}`, 'DELETE'); void loadTokens() } }}>Revoke</button>}</td>
                   </tr>
                 ))}

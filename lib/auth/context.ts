@@ -8,6 +8,8 @@ import { resolveMachineToken, type TokenLookup } from './principal'
 export interface AuthzDeps {
   findTokenByPrefix: TokenLookup
   getMemberRole: MemberLookup
+  /** Is this Clerk user a global Owner (STAFF_USER_IDS)? Owners administer every space. */
+  isGlobalOwner?: (userId: string) => boolean
   touchTokenLastUsed?: (tokenId: string) => Promise<void>
   /** Best-effort denial audit. Never allowed to mask the real error. */
   auditDenied?: (spaceId: string, principal: Principal, requestId?: string) => Promise<void>
@@ -71,6 +73,12 @@ export async function requireSpaceAccess(
       )
     }
     return { principal: resolved.principal, role }
+  }
+
+  // A global Owner (staff) administers every space, member row or not — so a
+  // project can never become invisible/unmanageable (even if all members left).
+  if (resolved.principal.type === 'user' && deps.isGlobalOwner?.(resolved.principal.id)) {
+    return { principal: resolved.principal, role: 'admin' }
   }
 
   try {

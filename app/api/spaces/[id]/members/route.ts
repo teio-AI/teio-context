@@ -7,7 +7,7 @@ import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
 import { getRequestId } from '@/lib/request-id'
 import { hasRole } from '@/lib/auth/authorize'
-import { authzDeps } from '@/lib/wiring'
+import { authzDeps, isGlobalOwner } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
 
@@ -31,7 +31,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const emails = secretKey
       ? await fetchUserEmails(members.filter((m) => m.principal_type === 'user').map((m) => m.principal_id), secretKey)
       : {}
-    const enriched = members.map((m) => ({ ...m, email: emails[m.principal_id] ?? null }))
+    const enriched = members.map((m) => ({
+      ...m,
+      email: emails[m.principal_id] ?? null,
+      is_owner: m.principal_type === 'user' && isGlobalOwner(m.principal_id),
+    }))
 
     const pending = hasRole(role, 'admin') ? await db.listPendingInvitations(id) : []
     return Response.json({ members: enriched, pending })
