@@ -403,3 +403,105 @@ export async function insertAudit(entry: {
             ${entry.outcome}, ${entry.requestId ?? null})
   `
 }
+
+// ---- dashboard read models (control-plane UI) ----
+
+export interface MemberListRow {
+  id: string
+  principal_type: Principal['type']
+  principal_id: string
+  role: Role
+  created_by: string
+  created_at: string
+}
+
+export async function listMembers(spaceId: string): Promise<MemberListRow[]> {
+  return (await sql`
+    select id, principal_type, principal_id, role, created_by, created_at
+    from space_members where space_id = ${spaceId}
+    order by case role when 'owner' then 0 when 'editor' then 1 else 2 end, created_at
+  `) as MemberListRow[]
+}
+
+export async function removeMember(spaceId: string, memberId: string): Promise<boolean> {
+  const rows = (await sql`
+    delete from space_members where id = ${memberId} and space_id = ${spaceId} returning id
+  `) as { id: string }[]
+  return rows.length > 0
+}
+
+export interface TokenMetaRow {
+  id: string
+  name: string
+  role: 'reader' | 'editor'
+  token_prefix: string
+  connector_id: string | null
+  created_by: string
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
+  expires_at: string | null
+}
+
+/** Token metadata for the UI — NEVER the hash or plaintext. */
+export async function listTokensMeta(spaceId: string): Promise<TokenMetaRow[]> {
+  return (await sql`
+    select id, name, role, token_prefix, connector_id, created_by, created_at,
+           last_used_at, revoked_at, expires_at
+    from api_tokens where space_id = ${spaceId}
+    order by created_at desc
+  `) as TokenMetaRow[]
+}
+
+export async function listConnectors(spaceId: string): Promise<
+  { id: string; kind: string; name: string; write_back_policy: string; status: string; created_at: string }[]
+> {
+  return (await sql`
+    select id, kind, name, write_back_policy, status, created_at
+    from connectors where space_id = ${spaceId} order by created_at
+  `) as { id: string; kind: string; name: string; write_back_policy: string; status: string; created_at: string }[]
+}
+
+export interface AuditRow {
+  id: string
+  ts: string
+  actor_type: string
+  actor_id: string | null
+  actor_display: string | null
+  action: string
+  path: string | null
+  outcome: string
+}
+
+export async function listRecentAudit(spaceId: string, limit = 50): Promise<AuditRow[]> {
+  return (await sql`
+    select id, ts, actor_type, actor_id, actor_display, action, path, outcome
+    from audit_log where space_id = ${spaceId}
+    order by ts desc limit ${limit}
+  `) as AuditRow[]
+}
+
+export interface ActivityStats {
+  current_sha: string | null
+  last_updated: string | null
+  writes_7d: number
+  docs: number
+  open_proposals: number
+}
+
+/** Per-project activity summary for the dashboard overview. */
+export async function getActivityStats(spaceId: string): Promise<ActivityStats> {
+  const rows = (await sql`
+    select
+      (select current_sha from spaces where id = ${spaceId}) as current_sha,
+      (select updated_at from spaces where id = ${spaceId}) as last_updated,
+      (select count(*)::int from audit_log
+         where space_id = ${spaceId}
+           and action in ('cas_write','merge','delete','move','reindex','backfill')
+           and ts > now() - interval '7 days') as writes_7d,
+      (select count(*)::int from documents where space_id = ${spaceId}) as docs,
+      (select count(*)::int from proposals
+         where space_id = ${spaceId} and status in ('open','conflict')) as open_proposals
+  `) as ActivityStats[]
+  return rows[0] ?? { current_sha: null, last_updated: null, writes_7d: 0, docs: 0, open_proposals: 0 }
+}

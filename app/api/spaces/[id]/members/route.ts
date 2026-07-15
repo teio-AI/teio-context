@@ -2,8 +2,10 @@ import { auth } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import * as db from '@/db'
 import { authorizeSpace } from '@/lib/auth/authorize'
+import { requireSpaceAccess } from '@/lib/auth/context'
 import { UnauthorizedError, ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
+import { authzDeps } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
 
@@ -12,6 +14,17 @@ const Body = z.object({
   principalId: z.string().min(1),
   role: z.enum(['owner', 'editor', 'reader']),
 })
+
+/** List members of a space (any member can view the roster). */
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+  try {
+    const { id } = await ctx.params
+    await requireSpaceAccess(req, id, 'reader', authzDeps)
+    return Response.json({ members: await db.listMembers(id) })
+  } catch (err) {
+    return toResponse(err)
+  }
+}
 
 /** Add or update a member on a space. Requires owner role on that space. */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {

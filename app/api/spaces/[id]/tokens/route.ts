@@ -9,6 +9,21 @@ import { authzDeps } from '@/lib/wiring'
 
 export const runtime = 'nodejs'
 
+/**
+ * GET /api/spaces/:id/tokens — list token metadata (owner). NEVER returns the
+ * hash or plaintext — only name/role/prefix/created/last-used/revoked, so the UI
+ * can show and manage tokens without exposing secrets.
+ */
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+  try {
+    const { id } = await ctx.params
+    await requireSpaceAccess(req, id, 'owner', authzDeps)
+    return Response.json({ tokens: await db.listTokensMeta(id) })
+  } catch (err) {
+    return toResponse(err)
+  }
+}
+
 const Body = z.object({
   name: z.string().min(1).max(200),
   role: z.enum(['reader', 'editor']),
