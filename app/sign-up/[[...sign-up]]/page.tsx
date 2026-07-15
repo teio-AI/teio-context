@@ -5,7 +5,10 @@ import { SignUp } from '@clerk/nextjs'
 export default function SignUpPage() {
   return (
     <main style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-      <SignUp />
+      {/* Accepting an email invite lands here with a __clerk_ticket; <SignUp>
+          consumes it to create the account, then we go to the dashboard where
+          the pending invitation is reconciled into a membership. */}
+      <SignUp fallbackRedirectUrl="/dashboard" signInUrl="/sign-in" />
     </main>
   )
 }
