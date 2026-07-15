@@ -98,5 +98,7 @@ context/
   components.md          ← synthesized (modules/dirs)
   glossary.md            ← synthesized (domain terms)
   imported/…             ← your existing docs, copied verbatim
-  handoffs/log.md        ← one line of history per /handoff (newest first)
+  handoffs/
+    log.md               ← thin newest-first index (one line per session)
+    2026-07-15.md        ← full handoff entries, one file per day
 ```

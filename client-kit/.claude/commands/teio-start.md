@@ -51,8 +51,10 @@ skimmable. When done, tell me what you imported.
 ## 4. RESTORE (context already exists) — load it into this session
 - `get_document` for `context/overview.md`, `context/architecture.md`, and
   `context/components.md`.
-- `get_document("context/handoffs/log.md")` (may not exist) — read the most
-  recent entries so you know what the last session did.
+- `get_document("context/handoffs/log.md")` (may not exist) — this is the
+  newest-first **index** of handoffs. Read the top lines for the timeline, then
+  `get_document` the most recent dated file it points to (e.g.
+  `context/handoffs/<YYYY-MM-DD>.md`) to see what the last session actually did.
 - If `$ARGUMENTS` hints at a task, also `search` the space for related terms and
   read the top hits with `get_document`.
 
