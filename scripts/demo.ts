@@ -113,8 +113,8 @@ async function provisionProject(gh: GitHubClient, slug: string, name: string, ow
     createdBy: owner,
   })
 
-  // The creator is an owner; invite a teammate as an editor (their Clerk id).
-  await db.addMember(space.id, 'user', owner, 'owner', owner)
+  // The creator is the project admin; invite a teammate as an editor.
+  await db.addMember(space.id, 'user', owner, 'admin', owner)
   await db.addMember(space.id, 'user', 'user_teammate_demo', 'editor', owner)
 
   // Scoped machine identities: the TEIO platform (auto-merge), an AI agent
