@@ -2,7 +2,7 @@ import { z } from 'zod'
 import * as db from '@/db'
 import { requireSpaceAccess } from '@/lib/auth/context'
 import { getEnv } from '@/lib/env'
-import { sendClerkInvitation } from '@/lib/invitations'
+import { fetchUserEmails, sendClerkInvitation } from '@/lib/invitations'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
 import { getRequestId } from '@/lib/request-id'
@@ -25,8 +25,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const { id } = await ctx.params
     const { role } = await requireSpaceAccess(req, id, 'reader', authzDeps)
     const members = await db.listMembers(id)
+
+    // Resolve emails for display (we store the stable Clerk id; email is nicer).
+    const secretKey = getEnv().CLERK_SECRET_KEY
+    const emails = secretKey
+      ? await fetchUserEmails(members.filter((m) => m.principal_type === 'user').map((m) => m.principal_id), secretKey)
+      : {}
+    const enriched = members.map((m) => ({ ...m, email: emails[m.principal_id] ?? null }))
+
     const pending = hasRole(role, 'admin') ? await db.listPendingInvitations(id) : []
-    return Response.json({ members, pending })
+    return Response.json({ members: enriched, pending })
   } catch (err) {
     return toResponse(err)
   }

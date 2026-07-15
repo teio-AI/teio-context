@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   getMemberRole: vi.fn(async (): Promise<'admin' | 'editor' | 'reader'> => 'reader'),
   getEnv: vi.fn(() => ({ STAFF_USER_IDS: 'staff-1', CLERK_SECRET_KEY: 'sk_test' })),
   sendClerkInvitation: vi.fn(async (): Promise<{ id: string } | null> => null),
+  fetchUserEmails: vi.fn(async (): Promise<Record<string, string>> => ({ user_a: 'a@co.com' })),
   listMembers: vi.fn(async () => [{ id: 'm1', principal_type: 'user', principal_id: 'user_a', role: 'admin', created_by: 'user_a', created_at: 't' }]),
   removeMember: vi.fn(async () => true),
   addMember: vi.fn(async () => ({ id: 'm9' })),
@@ -24,7 +25,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: h.auth, currentUser: h.currentUser }))
 vi.mock('@/lib/env', () => ({ getEnv: h.getEnv }))
-vi.mock('@/lib/invitations', () => ({ sendClerkInvitation: h.sendClerkInvitation }))
+vi.mock('@/lib/invitations', () => ({ sendClerkInvitation: h.sendClerkInvitation, fetchUserEmails: h.fetchUserEmails }))
 vi.mock('@/lib/wiring', () => ({
   authzDeps: { findTokenByPrefix: async () => null, getMemberRole: h.getMemberRole },
   getContextService: () => ({}),
@@ -65,6 +66,7 @@ describe('dashboard endpoints', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.members).toHaveLength(1)
+    expect(body.members[0].email).toBe('a@co.com') // resolved from Clerk for display
     expect(body.pending).toEqual([]) // reader doesn't see pending invites
   })
 

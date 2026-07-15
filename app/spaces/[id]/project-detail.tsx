@@ -6,7 +6,7 @@ import { Shell } from '../../shell'
 type Role = 'admin' | 'editor' | 'reader'
 type Tab = 'overview' | 'members' | 'tokens' | 'connectors' | 'history'
 
-interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string }
+interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string; email?: string | null }
 interface Pending { id: string; email: string; role: string; created_at: string }
 interface TokenMeta { id: string; name: string; role: string; token_prefix: string; connector_id: string | null; created_at: string; last_used_at: string | null; revoked_at: string | null }
 interface Connector { id: string; kind: string; name: string; write_back_policy: string; status: string }
@@ -115,7 +115,7 @@ export default function ProjectDetail({ id }: { id: string }) {
               <tbody>
                 {members.map((m) => (
                   <tr key={m.id}>
-                    <td><code>{m.principal_id}</code></td><td className="muted">{m.principal_type}</td>
+                    <td>{m.email ? <span>{m.email}</span> : <code>{m.principal_id}</code>}{m.email && <div className="faint" style={{ fontSize: 11 }}>{m.principal_id}</div>}</td><td className="muted">{m.principal_type}</td>
                     <td><span className={`tag tag-${m.role}`}>{m.role}</span></td><td className="muted">{fmt(m.created_at)}</td>
                     {isAdmin && <td style={{ textAlign: 'right' }}><button className="btn btn-sm btn-danger" onClick={async () => { if (confirm('Remove member?')) { await mutate(`/api/spaces/${id}/members/${m.id}`, 'DELETE'); void loadMembers() } }}>Remove</button></td>}
                   </tr>
