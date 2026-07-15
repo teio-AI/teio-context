@@ -116,6 +116,28 @@ and (because the ai-agent token is propose-only) **open a PR** instead of writin
 to main. Tools available: `list_spaces`, `get_version`, `get_document`, `search`,
 `propose_update`, `move_path`, `delete_path`, `list_proposals`.
 
+## The developer's day: `/startwork` + `/handoff` (client kit)
+The strongest segment — show context capture as part of a real workflow, not raw
+API calls. Ships in [`client-kit/`](client-kit/README.md) as Claude Code commands
+that run in the developer's own session (so they work for GitHub, Azure Repos, or
+a plain folder — Claude reads the local working copy; teio-context stores it).
+
+- **`/startwork`** — loads the project's shared context into the session. On the
+  **first** run (empty context) it **bootstraps**: copies existing docs verbatim
+  **and** synthesizes `overview / architecture / components / glossary`. This is
+  the "they forgot to document it" safety net — the context repo is never empty.
+- **`/handoff`** — persists the session: updates the affected context docs **and**
+  prepends an entry to `context/handoffs/log.md`. The next `/startwork` picks it up.
+
+Demo beat: open a fresh repo, run `/startwork` (watch it import), make a change,
+run `/handoff` (watch it write back + log), then run `/startwork` again in a
+"second developer" window and show the handoff is already there. Setup is in
+`client-kit/README.md` (copy the commands, fill `.mcp.json` with a project token).
+
+> These run in the dev's Claude, so they can't be scripted headlessly like §1–7 —
+> rehearse once beforehand. The underlying reads/writes (incl. nested paths like
+> `context/handoffs/log.md`) are verified live.
+
 ## FAQ ammo
 - **"Where's the data?"** In git — one repo per project. Postgres holds only the
   registry, roles, tokens, audit log, and a rebuildable search index (snippets,
