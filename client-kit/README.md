@@ -31,19 +31,21 @@ Guaranteed, by design:
    mkdir -p ~/.claude/commands
    cp client-kit/.claude/commands/*.md ~/.claude/commands/
    ```
-2. **MCP server → user scope** (not the repo). Run once per project token:
+2. **MCP server → user scope** (not the repo). Configure it **once** with a
+   **personal token** that works across all your projects:
    ```
    claude mcp add --scope user teio-context \
      --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
-     --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PROJECT_TOKEN \
+     --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PERSONAL_TOKEN \
      -- npx -y teio-context-mcp
    ```
-   - `TEIO_CONTEXT_TOKEN` → a **project token**: generate your own in the
-     dashboard (Tokens tab) — it follows your role.
+   - `TEIO_CONTEXT_TOKEN` → your **personal access token**: generate it on the
+     **dashboard** ("Personal access token"). One token for every project; it acts
+     with your role on each. No per-project swapping.
    - `npx teio-context-mcp` works once the package is published to npm (see
      `packages/teio-context-mcp`). Until then, build it and point at the local
      bundle: `-- node /ABS/PATH/packages/teio-context-mcp/dist/server.js`.
-3. Restart Claude Code, `cd` into your project, run `/teio-start`.
+3. Restart Claude Code, `cd` into a project, run `/teio-start <project-slug>`.
 
 ## Alternative — repo-scoped (only if your team WANTS it committed)
 
@@ -56,15 +58,18 @@ above if you don't want that.
 
 Machine auth — no login flow. The MCP server sends your `TEIO_CONTEXT_TOKEN` as a
 `Bearer` header on every API call; teio-context verifies it server-side (sha256,
-constant-time), resolves the project + role, and enforces access. Notes:
-- A member mints a token for themselves in the dashboard (Tokens tab) — its role
-  **follows your membership** (admin/editor/reader). Non-human consumers get a
-  **service token** with an explicit role from an admin.
-- Issue **one token per person/agent per project** — each is revocable
-  independently and the audit log attributes every write to the right identity.
+constant-time) and enforces access. Token kinds:
+- **Personal token** (recommended for your own agent/MCP) — generated on the
+  **dashboard**; **space-unbound**, so it works across **all your projects** and
+  acts with **your role** on each (Owner/Admin/Editor/Reader). One token, no
+  swapping. `list_spaces` returns every project you can access; pick one with
+  `/teio-start <slug>`.
+- **Project token** — minted in a project's Tokens tab; scoped to that one
+  project. **Service token** = admin-minted, explicit role, for a non-human
+  consumer; can carry "require review".
 - The token lives in your **user-level** MCP config, not in any repo. Treat it
-  like an API key. (Humans use Clerk sign-in for the web/API; machines/agents use
-  these tokens.)
+  like an API key; revoke it anytime (dashboard). Humans use Clerk sign-in for the
+  web/API; machines/agents use these tokens.
 
 ## What writes do
 
@@ -79,10 +84,10 @@ its writes open a PR instead — good for an AI agent you want a human to approv
 
 ## Working on several projects
 
-A token maps to one project, so add **one MCP server entry per project** you work
-on (`teio-context-acme`, `teio-context-platform`, …). `/teio-start` calls
-`list_spaces` and uses the single space that token can see; if a session has more
-than one, pass the slug: `/teio-start acme`.
+With a **personal token** you configure the MCP server **once** and it sees all
+your projects. `/teio-start` calls `list_spaces`; if you can see more than one,
+just name the project: `/teio-start acme`. No per-project token, no swapping.
+(A single **project token** is still fine if you only work on one project.)
 
 ## What gets written where
 

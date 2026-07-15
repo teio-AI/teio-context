@@ -48,6 +48,17 @@ describe('resolvePrincipal', () => {
     expect(authMock).not.toHaveBeenCalled()
   })
 
+  it('a PERSONAL token (space-unbound) resolves to the USER principal, no space binding', async () => {
+    const gen = generateToken('me')
+    const row = tokenRow({ space_id: null, user_id: 'owner_1', role: null }, gen.hash)
+    const deps = makeDeps({ findTokenByPrefix: async (prefix) => (prefix === gen.prefix ? row : null) })
+
+    const resolved = await resolvePrincipal(reqWithAuth(`Bearer ${gen.token}`), deps)
+
+    expect(resolved.principal).toEqual({ type: 'user', id: 'owner_1' })
+    expect(resolved.tokenBinding).toBeUndefined() // acts exactly as that user
+  })
+
   it('falls back to Clerk when no bearer token is present', async () => {
     authMock.mockResolvedValue({ userId: 'user_1' })
     const resolved = await resolvePrincipal(reqWithAuth(), makeDeps())
@@ -102,6 +113,26 @@ describe('requireSpaceAccess', () => {
     const result = await requireSpaceAccess(reqWithAuth(), 's1', 'admin', deps)
     expect(result.role).toBe('admin')
     expect(getMemberRole).not.toHaveBeenCalled() // owner bypasses the membership lookup
+  })
+
+  it('a personal token acts as its user — Owner gets admin on any space', async () => {
+    const gen = generateToken('me')
+    const deps = makeDeps({
+      findTokenByPrefix: async () => tokenRow({ space_id: null, user_id: 'owner_1', role: null }, gen.hash),
+      isGlobalOwner: (uid) => uid === 'owner_1',
+    })
+    const res = await requireSpaceAccess(reqWithAuth(`Bearer ${gen.token}`), 'anySpace', 'admin', deps)
+    expect(res).toEqual({ principal: { type: 'user', id: 'owner_1' }, role: 'admin' })
+  })
+
+  it('a personal token gets the user\'s per-project membership role', async () => {
+    const gen = generateToken('me')
+    const deps = makeDeps({
+      findTokenByPrefix: async () => tokenRow({ space_id: null, user_id: 'u2', role: null }, gen.hash),
+      getMemberRole: async () => 'editor',
+    })
+    const res = await requireSpaceAccess(reqWithAuth(`Bearer ${gen.token}`), 'sX', 'editor', deps)
+    expect(res.role).toBe('editor')
   })
 
   it('denies and audits a Clerk user with no membership', async () => {
