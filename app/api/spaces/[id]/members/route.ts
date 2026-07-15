@@ -69,7 +69,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     let clerkInvitationId: string | null = null
     if (secretKey) {
       const origin = new URL(req.url).origin
-      const sent = await sendClerkInvitation({ email, secretKey, redirectUrl: `${origin}/dashboard`, publicMetadata: { spaceId: id, role } })
+      // MUST point at the sign-up page: Clerk appends the invitation ticket
+      // (__clerk_ticket) to this URL, and <SignUp> consumes it to create the
+      // account. Sending them to /dashboard drops the ticket → no account.
+      const sent = await sendClerkInvitation({ email, secretKey, redirectUrl: `${origin}/sign-up`, publicMetadata: { spaceId: id, role } })
       clerkInvitationId = sent?.id ?? null
     }
 
