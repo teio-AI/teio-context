@@ -41,6 +41,26 @@ export async function fetchUserEmails(
   }
 }
 
+/**
+ * Revoke a Clerk invitation (best-effort). Needed so a cancelled/re-sent invite
+ * doesn't leave a stale pending Clerk invitation — Clerk refuses a duplicate to
+ * the same email, which silently blocks the re-invite email.
+ */
+export async function revokeClerkInvitation(
+  invitationId: string,
+  secretKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  try {
+    await fetchImpl(`https://api.clerk.com/v1/invitations/${invitationId}/revoke`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secretKey}` },
+    })
+  } catch {
+    /* best-effort */
+  }
+}
+
 export async function sendClerkInvitation(opts: {
   email: string
   redirectUrl: string

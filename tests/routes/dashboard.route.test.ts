@@ -7,13 +7,15 @@ const h = vi.hoisted(() => ({
   currentUser: vi.fn(async (): Promise<{ emailAddresses: { emailAddress: string; verification: { status: string } }[] } | null> => ({ emailAddresses: [] })),
   getMemberRole: vi.fn(async (): Promise<'admin' | 'editor' | 'reader'> => 'reader'),
   getEnv: vi.fn(() => ({ STAFF_USER_IDS: 'staff-1', CLERK_SECRET_KEY: 'sk_test' })),
-  sendClerkInvitation: vi.fn(async (): Promise<{ id: string } | null> => null),
+  sendClerkInvitation: vi.fn(async (): Promise<{ id: string } | null> => ({ id: 'clerk_inv_1' })),
+  revokeClerkInvitation: vi.fn(async () => {}),
   fetchUserEmails: vi.fn(async (): Promise<Record<string, string>> => ({ user_a: 'a@co.com' })),
   listMembers: vi.fn(async () => [{ id: 'm1', principal_type: 'user', principal_id: 'user_a', role: 'admin', created_by: 'user_a', created_at: 't' }]),
   removeMember: vi.fn(async () => true),
   addMember: vi.fn(async () => ({ id: 'm9' })),
   createPendingInvitation: vi.fn(async () => ({ id: 'inv1' })),
-  cancelPendingInvitation: vi.fn(async () => true),
+  cancelPendingInvitation: vi.fn(async (): Promise<{ clerk_invitation_id: string | null } | null> => ({ clerk_invitation_id: 'clerk_inv_1' })),
+  getPendingInvitation: vi.fn(async (): Promise<{ id: string; clerk_invitation_id: string | null } | null> => null),
   getSpaceById: vi.fn(async () => ({ id: 's1', slug: 'acme' })),
   insertApiToken: vi.fn(async () => ({ id: 'tk1' })),
   listPendingInvitations: vi.fn(async () => [{ id: 'inv1', space_id: 's1', email: 'p@co.com', role: 'editor', invited_by: 'user_a', created_at: 't' }]),
@@ -27,7 +29,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock('@clerk/nextjs/server', () => ({ auth: h.auth, currentUser: h.currentUser }))
 vi.mock('@/lib/env', () => ({ getEnv: h.getEnv }))
-vi.mock('@/lib/invitations', () => ({ sendClerkInvitation: h.sendClerkInvitation, fetchUserEmails: h.fetchUserEmails }))
+vi.mock('@/lib/invitations', () => ({ sendClerkInvitation: h.sendClerkInvitation, revokeClerkInvitation: h.revokeClerkInvitation, fetchUserEmails: h.fetchUserEmails }))
 vi.mock('@/lib/wiring', () => ({
   authzDeps: { findTokenByPrefix: async () => null, getMemberRole: h.getMemberRole },
   getContextService: () => ({}),
@@ -38,7 +40,8 @@ vi.mock('@/db', () => ({
   listPendingForEmail: h.listPendingForEmail, deletePendingInvitationById: h.deletePendingInvitationById,
   listTokensMeta: h.listTokensMeta, getActivityStats: h.getActivityStats,
   listRecentAudit: h.listRecentAudit, insertAudit: h.insertAudit, getMemberRole: h.getMemberRole,
-  cancelPendingInvitation: h.cancelPendingInvitation, getSpaceById: h.getSpaceById, insertApiToken: h.insertApiToken,
+  cancelPendingInvitation: h.cancelPendingInvitation, getPendingInvitation: h.getPendingInvitation,
+  getSpaceById: h.getSpaceById, insertApiToken: h.insertApiToken,
 }))
 
 import { GET as membersGET, POST as membersPOST } from '@/app/api/spaces/[id]/members/route'
@@ -61,6 +64,8 @@ beforeEach(() => {
   h.getEnv.mockReturnValue({ STAFF_USER_IDS: 'staff-1', CLERK_SECRET_KEY: 'sk_test' })
   h.removeMember.mockResolvedValue(true)
   h.listPendingForEmail.mockResolvedValue([])
+  h.getPendingInvitation.mockResolvedValue(null)
+  h.cancelPendingInvitation.mockResolvedValue({ clerk_invitation_id: 'clerk_inv_1' })
 })
 
 describe('dashboard endpoints', () => {
@@ -149,11 +154,20 @@ describe('dashboard endpoints', () => {
     expect(h.insertApiToken).toHaveBeenCalledWith(expect.objectContaining({ role: null, userId: 'user_a' }))
   })
 
-  it('DELETE invitation → 204 for admin', async () => {
+  it('POST members: re-inviting revokes the stale Clerk invitation first (so email re-sends)', async () => {
+    h.getMemberRole.mockResolvedValue('admin')
+    h.getPendingInvitation.mockResolvedValue({ id: 'inv1', clerk_invitation_id: 'clerk_old' })
+    await membersPOST(post({ email: 'x@y.com', role: 'reader' }), ctx)
+    expect(h.revokeClerkInvitation).toHaveBeenCalledWith('clerk_old', 'sk_test')
+    expect(h.createPendingInvitation).toHaveBeenCalledWith(expect.objectContaining({ clerkInvitationId: 'clerk_inv_1' }))
+  })
+
+  it('DELETE invitation → 204 for admin, and revokes the Clerk invitation', async () => {
     h.getMemberRole.mockResolvedValue('admin')
     const res = await inviteDELETE(req('/api/spaces/s1/invitations/inv1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', inviteId: 'inv1' }) })
     expect(res.status).toBe(204)
     expect(h.cancelPendingInvitation).toHaveBeenCalledWith('s1', 'inv1')
+    expect(h.revokeClerkInvitation).toHaveBeenCalledWith('clerk_inv_1', 'sk_test')
   })
 
   it('DELETE invitation → 403 for editor', async () => {

@@ -27,6 +27,11 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
         <div className="sidebar-foot">
           <div className="user-email">{user?.primaryEmailAddress?.emailAddress ?? '…'}</div>
+          {user?.id && (
+            <div className="faint" style={{ fontSize: 10, marginBottom: 8, userSelect: 'all', wordBreak: 'break-all' }} title="Your user id (for STAFF_USER_IDS bootstrap)">
+              {user.id}
+            </div>
+          )}
           <SignOutButton>
             <button type="button" className="btn btn-sm" style={{ width: '100%' }}>
               Sign out
