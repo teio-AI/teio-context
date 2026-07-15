@@ -33,7 +33,8 @@ export default function ProjectDetail({ id }: { id: string }) {
   const isAdmin = role === 'admin'
 
   const [invEmail, setInvEmail] = useState(''); const [invRole, setInvRole] = useState<Role>('reader')
-  const [tokName, setTokName] = useState(''); const [tokRole, setTokRole] = useState(''); const [tokReview, setTokReview] = useState(false)
+  const [tokName, setTokName] = useState(''); const [tokReview, setTokReview] = useState(false)
+  const [tokService, setTokService] = useState(false); const [tokRole, setTokRole] = useState('editor')
   const [newToken, setNewToken] = useState<string | null>(null)
 
   const loadCore = useCallback(async () => {
@@ -124,8 +125,13 @@ export default function ProjectDetail({ id }: { id: string }) {
               <div className="section-label">Pending invitations</div>
               <div className="card">
                 <table className="table">
-                  <thead><tr><th>Email</th><th>Role</th><th>Invited</th></tr></thead>
-                  <tbody>{pending.map((p) => <tr key={p.id}><td>{p.email}</td><td><span className={`tag tag-${p.role}`}>{p.role}</span></td><td className="muted">{fmt(p.created_at)}</td></tr>)}</tbody>
+                  <thead><tr><th>Email</th><th>Role</th><th>Invited</th><th /></tr></thead>
+                  <tbody>{pending.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.email}</td><td><span className={`tag tag-${p.role}`}>{p.role}</span></td><td className="muted">{fmt(p.created_at)}</td>
+                      <td style={{ textAlign: 'right' }}><button className="btn btn-sm btn-danger" onClick={async () => { if (confirm(`Cancel the invite to ${p.email}?`)) { await mutate(`/api/spaces/${id}/invitations/${p.id}`, 'DELETE'); void loadMembers() } }}>Cancel</button></td>
+                    </tr>
+                  ))}</tbody>
                 </table>
               </div>
             </>
@@ -138,18 +144,21 @@ export default function ProjectDetail({ id }: { id: string }) {
         <div className="stack">
           {!isAdmin && <p className="faint">Only admins can manage tokens.</p>}
           {isAdmin && (
-            <form className="card card-pad" onSubmit={async (e) => { e.preventDefault(); const body: Record<string, unknown> = { name: tokName, proposalOnly: tokReview }; if (tokRole) body.role = tokRole; const r = await mutate(`/api/spaces/${id}/tokens`, 'POST', body); if (r?.token) { setNewToken(r.token); setTokName(''); void loadTokens() } }}>
+            <form className="card card-pad" onSubmit={async (e) => { e.preventDefault(); const body: Record<string, unknown> = { name: tokName, proposalOnly: tokReview }; if (tokService) body.role = tokRole; const r = await mutate(`/api/spaces/${id}/tokens`, 'POST', body); if (r?.token) { setNewToken(r.token); setTokName(''); void loadTokens() } }}>
               <div className="row">
-                <input className="input" style={{ flex: 1 }} value={tokName} onChange={(e) => setTokName(e.target.value)} placeholder="Token name — e.g. ai-agent" />
-                <select className="select" value={tokRole} onChange={(e) => setTokRole(e.target.value)}>
-                  <option value="">my role (inherited)</option>
-                  <option value="reader">service · reader</option>
-                  <option value="editor">service · editor</option>
-                </select>
+                <input className="input" style={{ flex: 1 }} value={tokName} onChange={(e) => setTokName(e.target.value)} placeholder="Token name — e.g. my-agent" />
+                {tokService && (
+                  <select className="select" value={tokRole} onChange={(e) => setTokRole(e.target.value)} aria-label="service token role">
+                    <option value="reader">reader</option><option value="editor">editor</option>
+                  </select>
+                )}
                 <label className="row faint" style={{ gap: 5 }}><input type="checkbox" checked={tokReview} onChange={(e) => setTokReview(e.target.checked)} /> require review</label>
                 <button type="submit" className="btn btn-primary" disabled={!tokName}>Generate</button>
               </div>
-              <div className="faint" style={{ marginTop: 8 }}>“My role” = a token for your own agent/MCP (follows your membership). “Service” = for a non-human consumer with a fixed role. “Require review” makes its writes open a PR instead of auto-merging.</div>
+              <label className="row faint" style={{ gap: 5, marginTop: 8 }}>
+                <input type="checkbox" checked={tokService} onChange={(e) => setTokService(e.target.checked)} />
+                Service token for a non-human consumer (pick its role). Otherwise the token follows <strong>your</strong> role.
+              </label>
             </form>
           )}
           {newToken && (
