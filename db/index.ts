@@ -374,6 +374,18 @@ export async function removeMember(spaceId: string, memberId: string): Promise<b
   return rows.length > 0
 }
 
+export async function getSpaceMember(spaceId: string, memberId: string): Promise<{ id: string; role: Role; principal_id: string } | null> {
+  const rows = (await sql`
+    select id, role, principal_id from space_members where id = ${memberId} and space_id = ${spaceId}
+  `) as { id: string; role: Role; principal_id: string }[]
+  return rows[0] ?? null
+}
+
+export async function countSpaceAdmins(spaceId: string): Promise<number> {
+  const rows = (await sql`select count(*)::int as n from space_members where space_id = ${spaceId} and role = 'admin'`) as { n: number }[]
+  return rows[0]?.n ?? 0
+}
+
 export interface TokenMetaRow {
   id: string
   name: string

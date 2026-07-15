@@ -95,6 +95,15 @@ describe('requireSpaceAccess', () => {
     expect(result.role).toBe('admin')
   })
 
+  it('grants a global Owner admin on ANY space, even without a membership row', async () => {
+    authMock.mockResolvedValue({ userId: 'owner_1' })
+    const getMemberRole = vi.fn(async () => null) // not a member
+    const deps = makeDeps({ getMemberRole, isGlobalOwner: (uid) => uid === 'owner_1' })
+    const result = await requireSpaceAccess(reqWithAuth(), 's1', 'admin', deps)
+    expect(result.role).toBe('admin')
+    expect(getMemberRole).not.toHaveBeenCalled() // owner bypasses the membership lookup
+  })
+
   it('denies and audits a Clerk user with no membership', async () => {
     authMock.mockResolvedValue({ userId: 'user_1' })
     const auditDenied = vi.fn().mockResolvedValue(undefined)

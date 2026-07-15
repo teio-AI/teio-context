@@ -4,7 +4,8 @@ import { GitContextService } from './context/service'
 import { reindexChangedPaths } from './context/reindex'
 import type { ContextService, Principal } from './context/types'
 import { NotFoundError } from './errors'
-import { getGitHubConfig } from './env'
+import { getEnv, getGitHubConfig } from './env'
+import { isStaff, parseStaffIds } from './auth/staff'
 import { GitHubClient } from './github/client'
 import type { GitHubApi } from './github/client'
 import { getInstallationTokenProvider } from './github/singleton'
@@ -38,9 +39,15 @@ export async function repoRefForSpace(spaceId: string): Promise<RepoRef> {
 }
 
 /** Concrete auth dependencies, shared by every space-scoped route. */
+/** True when the Clerk user is a global Owner (space creator / admin-anywhere). */
+export function isGlobalOwner(userId: string): boolean {
+  return isStaff(userId, parseStaffIds(getEnv().STAFF_USER_IDS))
+}
+
 export const authzDeps: AuthzDeps = {
   findTokenByPrefix: db.findTokenByPrefix,
   getMemberRole: db.getMemberRole,
+  isGlobalOwner,
   touchTokenLastUsed: db.touchTokenLastUsed,
   auditDenied: (spaceId, principal, requestId) =>
     db.insertAudit({ spaceId, actorType: principal.type, actorId: principal.id, action: 'access_denied', outcome: 'denied', requestId }),
@@ -65,8 +72,14 @@ export function getContextService(): ContextService {
   if (!_contextService) {
     _contextService = new GitContextService({
       loadSpaceRepo: db.loadSpaceRepo,
-      listSpacesForPrincipal: (principal) =>
-        principal.type === 'user' ? db.listSpacesForUser(principal.id) : db.listSpacesForToken(principal.id),
+      listSpacesForPrincipal: async (principal) => {
+        if (principal.type === 'token') return db.listSpacesForToken(principal.id)
+        // A global Owner sees every project (they administer all of them).
+        if (isGlobalOwner(principal.id)) {
+          return (await db.listActiveSpaces()).map((s) => ({ id: s.id, slug: s.slug, name: s.name, role: 'admin' as const }))
+        }
+        return db.listSpacesForUser(principal.id)
+      },
       searchDocuments: db.searchDocuments,
       listOpenProposals: db.listOpenProposals,
       clientFor: clientForSpace,

@@ -12,6 +12,9 @@ const h = vi.hoisted(() => ({
   fetchUserEmails: vi.fn(async (): Promise<Record<string, string>> => ({ user_a: 'a@co.com' })),
   listMembers: vi.fn(async () => [{ id: 'm1', principal_type: 'user', principal_id: 'user_a', role: 'admin', created_by: 'user_a', created_at: 't' }]),
   removeMember: vi.fn(async () => true),
+  getSpaceMember: vi.fn(async (): Promise<{ id: string; role: string; principal_id: string } | null> => ({ id: 'm1', role: 'editor', principal_id: 'user_z' })),
+  countSpaceAdmins: vi.fn(async () => 2),
+  isGlobalOwner: vi.fn((_uid: string) => false),
   revokeToken: vi.fn(async () => true),
   revokeOwnToken: vi.fn(async () => true),
   addMember: vi.fn(async () => ({ id: 'm9' })),
@@ -33,11 +36,13 @@ vi.mock('@clerk/nextjs/server', () => ({ auth: h.auth, currentUser: h.currentUse
 vi.mock('@/lib/env', () => ({ getEnv: h.getEnv }))
 vi.mock('@/lib/invitations', () => ({ sendClerkInvitation: h.sendClerkInvitation, revokeClerkInvitation: h.revokeClerkInvitation, fetchUserEmails: h.fetchUserEmails }))
 vi.mock('@/lib/wiring', () => ({
-  authzDeps: { findTokenByPrefix: async () => null, getMemberRole: h.getMemberRole },
+  authzDeps: { findTokenByPrefix: async () => null, getMemberRole: h.getMemberRole, isGlobalOwner: h.isGlobalOwner },
   getContextService: () => ({}),
+  isGlobalOwner: h.isGlobalOwner,
 }))
 vi.mock('@/db', () => ({
   listMembers: h.listMembers, removeMember: h.removeMember, addMember: h.addMember,
+  getSpaceMember: h.getSpaceMember, countSpaceAdmins: h.countSpaceAdmins,
   revokeToken: h.revokeToken, revokeOwnToken: h.revokeOwnToken,
   createPendingInvitation: h.createPendingInvitation, listPendingInvitations: h.listPendingInvitations,
   listPendingForEmail: h.listPendingForEmail, deletePendingInvitationById: h.deletePendingInvitationById,
@@ -70,6 +75,9 @@ beforeEach(() => {
   h.listPendingForEmail.mockResolvedValue([])
   h.getPendingInvitation.mockResolvedValue(null)
   h.cancelPendingInvitation.mockResolvedValue({ clerk_invitation_id: 'clerk_inv_1' })
+  h.getSpaceMember.mockResolvedValue({ id: 'm1', role: 'editor', principal_id: 'user_z' })
+  h.countSpaceAdmins.mockResolvedValue(2)
+  h.isGlobalOwner.mockReturnValue(false)
 })
 
 describe('dashboard endpoints', () => {
@@ -126,8 +134,25 @@ describe('dashboard endpoints', () => {
 
   it('DELETE member → 404 when the member is absent', async () => {
     h.getMemberRole.mockResolvedValue('admin')
-    h.removeMember.mockResolvedValue(false)
+    h.getSpaceMember.mockResolvedValue(null)
     expect((await memberDELETE(req('/api/spaces/s1/members/m1', { method: 'DELETE' }), midCtx)).status).toBe(404)
+  })
+
+  it('DELETE member → 422 when removing the LAST admin (no orphaned project)', async () => {
+    h.getMemberRole.mockResolvedValue('admin')
+    h.getSpaceMember.mockResolvedValue({ id: 'm1', role: 'admin', principal_id: 'user_z' })
+    h.countSpaceAdmins.mockResolvedValue(1)
+    expect((await memberDELETE(req('/api/spaces/s1/members/m1', { method: 'DELETE' }), midCtx)).status).toBe(422)
+    expect(h.removeMember).not.toHaveBeenCalled()
+  })
+
+  it('DELETE member → 422 when the target is a global Owner (never removable)', async () => {
+    h.getMemberRole.mockResolvedValue('admin')
+    h.getSpaceMember.mockResolvedValue({ id: 'm1', role: 'admin', principal_id: 'user_owner' })
+    h.countSpaceAdmins.mockResolvedValue(3)
+    h.isGlobalOwner.mockImplementation((uid: string) => uid === 'user_owner')
+    expect((await memberDELETE(req('/api/spaces/s1/members/m1', { method: 'DELETE' }), midCtx)).status).toBe(422)
+    expect(h.removeMember).not.toHaveBeenCalled()
   })
 
   it('GET tokens → 200 for admin, and NEVER leaks a secret', async () => {
