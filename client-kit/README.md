@@ -79,7 +79,7 @@ its writes open a PR instead — good for an AI agent you want a human to approv
 
 | Token | Can write? | With "require review" |
 |-------|-----------|-----------------------|
-| **editor / admin** (or a member token that inherits one) | ✅ auto-merges | opens a PR |
+| **personal token** (acts as you) / **service editor** | ✅ auto-merges | opens a PR |
 | **reader** | ❌ read-only | — |
 
 ## Working on several projects
