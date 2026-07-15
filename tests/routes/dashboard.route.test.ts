@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // no Authorization header → Clerk path → authzDeps.getMemberRole decides the role.
 const h = vi.hoisted(() => ({
   auth: vi.fn(),
-  getMemberRole: vi.fn(async () => 'reader' as const),
+  getMemberRole: vi.fn(async (): Promise<'owner' | 'editor' | 'reader'> => 'reader'),
   getEnv: vi.fn(() => ({ STAFF_USER_IDS: 'staff-1' })),
   listMembers: vi.fn(async () => [{ id: 'm1', principal_type: 'user', principal_id: 'user_a', role: 'owner', created_by: 'user_a', created_at: 't' }]),
   removeMember: vi.fn(async () => true),
