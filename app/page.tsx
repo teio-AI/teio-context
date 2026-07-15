@@ -29,6 +29,9 @@ export default async function Home() {
           <p>
             Space creation (staff): <strong>{staff ? 'allowed ✓' : 'denied — add this id to STAFF_USER_IDS'}</strong>
           </p>
+          <p>
+            <a href="/dashboard">→ Open dashboard</a>
+          </p>
           <SignOutButton>
             <button type="button" style={{ padding: '0.4rem 0.9rem', cursor: 'pointer' }}>
               Sign out

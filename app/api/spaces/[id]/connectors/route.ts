@@ -16,6 +16,17 @@ const Body = z.object({
   writeBackPolicy: z.enum(['auto_merge_clean', 'proposal_only', 'inherit']).optional(),
 })
 
+/** List connectors on a space (any member can view). */
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
+  try {
+    const { id } = await ctx.params
+    await requireSpaceAccess(req, id, 'reader', authzDeps)
+    return Response.json({ connectors: await db.listConnectors(id) })
+  } catch (err) {
+    return toResponse(err)
+  }
+}
+
 /**
  * POST /api/spaces/:id/connectors — register a connector (owner). Write-back
  * policy defaults per kind when not given explicitly (ARCHITECTURE §3.1, §8:
