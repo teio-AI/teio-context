@@ -2,7 +2,7 @@ import { z } from 'zod'
 import * as db from '@/db'
 import { requireSpaceAccess } from '@/lib/auth/context'
 import { getEnv } from '@/lib/env'
-import { fetchUserEmails, sendClerkInvitation } from '@/lib/invitations'
+import { fetchUserEmails, revokeClerkInvitation, sendClerkInvitation } from '@/lib/invitations'
 import { ValidationError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
 import { getRequestId } from '@/lib/request-id'
@@ -54,21 +54,29 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join('; '))
     const { email, role } = parsed.data
 
-    const invite = await db.createPendingInvitation({ spaceId: id, email, role, invitedBy: principal.id })
+    const secretKey = getEnv().CLERK_SECRET_KEY
+
+    // Re-inviting the same email? Revoke the old Clerk invitation first, else
+    // Clerk refuses the duplicate and no new email is sent.
+    if (secretKey) {
+      const existing = await db.getPendingInvitation(id, email)
+      if (existing?.clerk_invitation_id) await revokeClerkInvitation(existing.clerk_invitation_id, secretKey)
+    }
 
     // Best-effort: Clerk sends the invite email. If it declines (e.g. the email
-    // is already a registered user), that's fine — reconcile-on-login handles it.
-    const secretKey = getEnv().CLERK_SECRET_KEY
-    let emailed = false
+    // already belongs to a user), that's fine — reconcile-on-login still adds
+    // them the next time they sign in with that verified email.
+    let clerkInvitationId: string | null = null
     if (secretKey) {
       const origin = new URL(req.url).origin
       const sent = await sendClerkInvitation({ email, secretKey, redirectUrl: `${origin}/dashboard`, publicMetadata: { spaceId: id, role } })
-      emailed = !!sent
-      if (sent) await db.createPendingInvitation({ spaceId: id, email, role, invitedBy: principal.id, clerkInvitationId: sent.id })
+      clerkInvitationId = sent?.id ?? null
     }
 
+    const invite = await db.createPendingInvitation({ spaceId: id, email, role, invitedBy: principal.id, clerkInvitationId })
+
     await db.insertAudit({ spaceId: id, actorType: principal.type, actorId: principal.id, action: 'member_invite', outcome: 'ok', requestId: getRequestId(req) })
-    return Response.json({ invited: email, role, emailed, invitationId: invite.id }, { status: 201 })
+    return Response.json({ invited: email, role, emailed: !!clerkInvitationId, invitationId: invite.id }, { status: 201 })
   } catch (err) {
     return toResponse(err)
   }

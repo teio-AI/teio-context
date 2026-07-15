@@ -451,9 +451,22 @@ export async function listPendingInvitations(spaceId: string): Promise<PendingIn
   `) as PendingInvite[]
 }
 
-export async function cancelPendingInvitation(spaceId: string, id: string): Promise<boolean> {
-  const rows = (await sql`delete from pending_invitations where id = ${id} and space_id = ${spaceId} returning id`) as { id: string }[]
-  return rows.length > 0
+/** Cancel a pending invitation; returns its clerk_invitation_id (to revoke), or null if not found. */
+export async function cancelPendingInvitation(spaceId: string, id: string): Promise<{ clerk_invitation_id: string | null } | null> {
+  const rows = (await sql`
+    delete from pending_invitations where id = ${id} and space_id = ${spaceId}
+    returning clerk_invitation_id
+  `) as { clerk_invitation_id: string | null }[]
+  return rows[0] ?? null
+}
+
+/** The pending invitation for (space, email), if any — used to revoke before re-inviting. */
+export async function getPendingInvitation(spaceId: string, email: string): Promise<{ id: string; clerk_invitation_id: string | null } | null> {
+  const rows = (await sql`
+    select id, clerk_invitation_id from pending_invitations
+    where space_id = ${spaceId} and lower(email) = ${email.toLowerCase()}
+  `) as { id: string; clerk_invitation_id: string | null }[]
+  return rows[0] ?? null
 }
 
 /** All pending invites for an email (across spaces) — used to reconcile on login. */
