@@ -29,6 +29,7 @@ const h = vi.hoisted(() => ({
   listTokensMeta: vi.fn(async () => [{ id: 't1', name: 'ai', role: 'editor', user_id: null, proposal_only: true, token_prefix: 'tctx_x_ab', created_by: 'u', created_at: 't', last_used_at: null, revoked_at: null, expires_at: null }]),
   getActivityStats: vi.fn(async () => ({ current_sha: 'abc', last_updated: 't', writes_7d: 3, docs: 5, open_proposals: 1 })),
   listRecentAudit: vi.fn(async () => [{ id: '1', ts: 't', actor_type: 'user', actor_id: 'u', actor_display: null, action: 'cas_write', path: 'context/a.md', outcome: 'ok' }]),
+  listDocuments: vi.fn(async () => [{ path: 'context/overview.md', title: 'Overview', snippet: 's', updated_at: 't' }]),
   insertAudit: vi.fn(async () => {}),
 }))
 
@@ -48,6 +49,7 @@ vi.mock('@/db', () => ({
   listPendingForEmail: h.listPendingForEmail, deletePendingInvitationById: h.deletePendingInvitationById,
   listTokensMeta: h.listTokensMeta, getActivityStats: h.getActivityStats,
   listRecentAudit: h.listRecentAudit, insertAudit: h.insertAudit, getMemberRole: h.getMemberRole,
+  listDocuments: h.listDocuments,
   cancelPendingInvitation: h.cancelPendingInvitation, getPendingInvitation: h.getPendingInvitation,
   getSpaceById: h.getSpaceById, insertApiToken: h.insertApiToken,
 }))
@@ -58,6 +60,7 @@ import { GET as tokensGET, POST as tokensPOST } from '@/app/api/spaces/[id]/toke
 import { DELETE as tokenDELETE } from '@/app/api/spaces/[id]/tokens/[tid]/route'
 import { DELETE as inviteDELETE } from '@/app/api/spaces/[id]/invitations/[inviteId]/route'
 import { GET as activityGET } from '@/app/api/spaces/[id]/activity/route'
+import { GET as documentsGET } from '@/app/api/spaces/[id]/documents/route'
 import { GET as meGET } from '@/app/api/me/route'
 
 const req = (p = '/api/spaces/s1/x', init?: RequestInit) => new Request(`https://x.test${p}`, init)
@@ -222,6 +225,12 @@ describe('dashboard endpoints', () => {
     const res = await inviteDELETE(req('/api/spaces/s1/invitations/inv1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', inviteId: 'inv1' }) })
     expect(res.status).toBe(403)
     expect(h.cancelPendingInvitation).not.toHaveBeenCalled()
+  })
+
+  it('GET documents → 200 lists the context docs (any member)', async () => {
+    const res = await documentsGET(req('/api/spaces/s1/documents'), ctx)
+    expect(res.status).toBe(200)
+    expect((await res.json()).documents[0].path).toBe('context/overview.md')
   })
 
   it('GET activity → 200 with stats + events', async () => {

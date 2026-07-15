@@ -36,12 +36,13 @@ Guaranteed, by design:
    claude mcp add --scope user teio-context \
      --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
      --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PROJECT_TOKEN \
-     -- bun run /ABSOLUTE/PATH/TO/teio-context/mcp/server.ts
+     -- npx -y teio-context-mcp
    ```
-   - `TEIO_CONTEXT_TOKEN` → a **project token** (one project per token), from a
-     space owner (`POST /api/spaces/:id/tokens`).
-   - The `bun run …server.ts` path is until the MCP server is published as an npx
-     package (see follow-up below).
+   - `TEIO_CONTEXT_TOKEN` → a **project token**: generate your own in the
+     dashboard (Tokens tab) — it follows your role.
+   - `npx teio-context-mcp` works once the package is published to npm (see
+     `packages/teio-context-mcp`). Until then, build it and point at the local
+     bundle: `-- node /ABS/PATH/packages/teio-context-mcp/dist/server.js`.
 3. Restart Claude Code, `cd` into your project, run `/teio-start`.
 
 ## Alternative — repo-scoped (only if your team WANTS it committed)
