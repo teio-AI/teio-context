@@ -16,7 +16,6 @@ const h = vi.hoisted(() => ({
   countSpaceAdmins: vi.fn(async () => 2),
   isGlobalOwner: vi.fn((_uid: string) => false),
   revokeToken: vi.fn(async () => true),
-  revokeOwnToken: vi.fn(async () => true),
   addMember: vi.fn(async () => ({ id: 'm9' })),
   createPendingInvitation: vi.fn(async () => ({ id: 'inv1' })),
   cancelPendingInvitation: vi.fn(async (): Promise<{ clerk_invitation_id: string | null } | null> => ({ clerk_invitation_id: 'clerk_inv_1' })),
@@ -44,7 +43,7 @@ vi.mock('@/lib/wiring', () => ({
 vi.mock('@/db', () => ({
   listMembers: h.listMembers, removeMember: h.removeMember, addMember: h.addMember,
   getSpaceMember: h.getSpaceMember, countSpaceAdmins: h.countSpaceAdmins,
-  revokeToken: h.revokeToken, revokeOwnToken: h.revokeOwnToken,
+  revokeToken: h.revokeToken,
   createPendingInvitation: h.createPendingInvitation, listPendingInvitations: h.listPendingInvitations,
   listPendingForEmail: h.listPendingForEmail, deletePendingInvitationById: h.deletePendingInvitationById,
   listTokensMeta: h.listTokensMeta, getActivityStats: h.getActivityStats,
@@ -167,41 +166,42 @@ describe('dashboard endpoints', () => {
     expect(JSON.stringify(body)).not.toContain('tctx_x_ab_') // only the prefix, never a full token
   })
 
-  it('GET tokens → editor sees their OWN tokens (scoped by creator)', async () => {
+  it('GET tokens → 403 for a non-admin (service tokens are admin-only)', async () => {
     h.getMemberRole.mockResolvedValue('editor')
-    const res = await tokensGET(req('/api/spaces/s1/tokens'), ctx)
-    expect(res.status).toBe(200)
-    expect(h.listTokensMeta).toHaveBeenCalledWith('s1', 'user_a') // scoped to the caller
+    expect((await tokensGET(req('/api/spaces/s1/tokens'), ctx)).status).toBe(403)
   })
 
-  it('DELETE token → admin revokes ANY token (revokeToken)', async () => {
+  it('DELETE token → admin revokes it (revokeToken)', async () => {
     h.getMemberRole.mockResolvedValue('admin')
     const res = await tokenDELETE(req('/api/spaces/s1/tokens/tk1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', tid: 'tk1' }) })
     expect(res.status).toBe(200)
     expect(h.revokeToken).toHaveBeenCalledWith('s1', 'tk1')
-    expect(h.revokeOwnToken).not.toHaveBeenCalled()
   })
 
-  it('DELETE token → non-admin can only revoke their OWN (revokeOwnToken)', async () => {
+  it('DELETE token → 403 for a non-admin', async () => {
     h.getMemberRole.mockResolvedValue('editor')
     const res = await tokenDELETE(req('/api/spaces/s1/tokens/tk1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', tid: 'tk1' }) })
-    expect(res.status).toBe(200)
-    expect(h.revokeOwnToken).toHaveBeenCalledWith('s1', 'tk1', 'user_a')
+    expect(res.status).toBe(403)
     expect(h.revokeToken).not.toHaveBeenCalled()
   })
 
-  it('POST tokens: a reader CANNOT mint a service editor token (403, no escalation)', async () => {
-    h.getMemberRole.mockResolvedValue('reader')
+  it('POST tokens: admin mints a SERVICE token (role required, user_id null)', async () => {
+    h.getMemberRole.mockResolvedValue('admin')
+    const res = await tokensPOST(req('/api/spaces/s1/tokens', { method: 'POST', body: JSON.stringify({ name: 'teio-platform', role: 'editor' }) }), ctx)
+    expect(res.status).toBe(201)
+    expect(h.insertApiToken).toHaveBeenCalledWith(expect.objectContaining({ role: 'editor', userId: null, spaceId: 's1' }))
+  })
+
+  it('POST tokens: 403 for a non-admin (only admins issue service tokens)', async () => {
+    h.getMemberRole.mockResolvedValue('editor')
     const res = await tokensPOST(req('/api/spaces/s1/tokens', { method: 'POST', body: JSON.stringify({ name: 'x', role: 'editor' }) }), ctx)
     expect(res.status).toBe(403)
     expect(h.insertApiToken).not.toHaveBeenCalled()
   })
 
-  it('POST tokens: a reader CAN mint their own token — role inherits (null), not picked', async () => {
-    h.getMemberRole.mockResolvedValue('reader')
-    const res = await tokensPOST(req('/api/spaces/s1/tokens', { method: 'POST', body: JSON.stringify({ name: 'my-agent' }) }), ctx)
-    expect(res.status).toBe(201)
-    expect(h.insertApiToken).toHaveBeenCalledWith(expect.objectContaining({ role: null, userId: 'user_a' }))
+  it('POST tokens: 422 when role is missing (service token needs a role)', async () => {
+    h.getMemberRole.mockResolvedValue('admin')
+    expect((await tokensPOST(req('/api/spaces/s1/tokens', { method: 'POST', body: JSON.stringify({ name: 'x' }) }), ctx)).status).toBe(422)
   })
 
   it('POST members: re-inviting revokes the stale Clerk invitation first (so email re-sends)', async () => {
