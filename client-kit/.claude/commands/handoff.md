@@ -7,6 +7,10 @@ allowed-tools: Read, Glob, Grep, mcp__teio-context__list_spaces, mcp__teio-conte
 You are ending a work session on a teio-context-backed project. Persist what
 changed so the next person or agent picks it up on their `/startwork`.
 
+**⚠️ This working directory (my code repo) is READ-ONLY to you.** Never create,
+edit, move, or delete any file here, and never run git against it. All writes go
+to the **separate teio-context context repo** via the teio-context MCP tools.
+
 ## 1. Resolve the project
 - `list_spaces` → use the single space, or the one named in `$ARGUMENTS`.
 

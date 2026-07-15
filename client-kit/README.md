@@ -14,20 +14,42 @@ These run **inside your Claude Code session**, so they work no matter where your
 code lives (GitHub, Azure Repos, a plain folder) — Claude reads your local
 working copy; teio-context stores the result in the project's context repo.
 
-## Install (per code repo, or globally)
+## Your code repo is never touched
 
-1. **Copy the commands** into the repo you work in (or `~/.claude/` for all repos):
+Guaranteed, by design:
+- The commands **only READ** your working directory (Glob/Grep/Read) and are
+  scoped so they **cannot** create, edit, delete, or `git`-commit anything in it.
+- **Every write goes to the separate teio-context context repo** (teio's own git
+  repo), via the teio-context MCP tools — never to your code repo.
+- The install below is **user-level**, so **no files are added to your code repo
+  either** (no `.claude/`, no `.mcp.json` committed).
+
+## Install — zero footprint (recommended)
+
+1. **Commands → your user folder** (available in every repo, added to none):
    ```
-   cp -r client-kit/.claude/commands/* <your-repo>/.claude/commands/
+   mkdir -p ~/.claude/commands
+   cp client-kit/.claude/commands/*.md ~/.claude/commands/
    ```
-2. **Add the MCP server.** Copy `client-kit/.mcp.json` to your repo root (Claude
-   Code reads project MCP config from `.mcp.json`) and fill in:
-   - `args` → the absolute path to this teio-context checkout's `mcp/server.ts`
-     (until the MCP server is published as an npx package).
-   - `TEIO_CONTEXT_API_URL` → your deployment (e.g. `https://teio-context.vercel.app`).
-   - `TEIO_CONTEXT_TOKEN` → a **project token** (one project per token). Get it
-     from a space owner (`POST /api/spaces/:id/tokens`).
-3. Restart Claude Code so it picks up the MCP server, then run `/startwork`.
+2. **MCP server → user scope** (not the repo). Run once per project token:
+   ```
+   claude mcp add --scope user teio-context \
+     --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
+     --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PROJECT_TOKEN \
+     -- bun run /ABSOLUTE/PATH/TO/teio-context/mcp/server.ts
+   ```
+   - `TEIO_CONTEXT_TOKEN` → a **project token** (one project per token), from a
+     space owner (`POST /api/spaces/:id/tokens`).
+   - The `bun run …server.ts` path is until the MCP server is published as an npx
+     package (see follow-up below).
+3. Restart Claude Code, `cd` into your project, run `/startwork`.
+
+## Alternative — repo-scoped (only if your team WANTS it committed)
+
+If a team prefers the config to live with the repo, copy the commands to
+`<repo>/.claude/commands/` and `client-kit/.mcp.json` to the repo root instead.
+This **does** add those files to the code repo — use the zero-footprint install
+above if you don't want that.
 
 ## Which token?
 

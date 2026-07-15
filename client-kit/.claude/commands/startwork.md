@@ -5,9 +5,13 @@ allowed-tools: Read, Glob, Grep, mcp__teio-context__list_spaces, mcp__teio-conte
 ---
 
 You are starting a work session on a project backed by **teio-context** (a shared
-context layer). Do the steps below, then give me a short briefing. Use the
-teio-context MCP tools for all context reads/writes; use your file tools
-(Glob/Grep/Read) only to read my LOCAL working copy.
+context layer). Do the steps below, then give me a short briefing.
+
+**⚠️ This working directory (my code repo) is READ-ONLY to you.** Never create,
+edit, move, or delete any file here, and never run git or any shell command
+against it. You may only READ it (Glob/Grep/Read). Every write you make goes to
+the **separate teio-context context repo** via the teio-context MCP tools —
+never to my code repo.
 
 ## 1. Resolve the project
 - Call `list_spaces`. If exactly one space comes back, use it. If several and
