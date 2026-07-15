@@ -12,37 +12,39 @@ export default async function Home() {
   const staff = userId ? isStaff(userId, parseStaffIds(getEnv().STAFF_USER_IDS)) : false
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '2rem', maxWidth: 640, lineHeight: 1.5 }}>
-      <h1>teio-context</h1>
-      <p>Shared context layer. Canonical context lives in git; this is the control plane.</p>
-      <p>
-        Health: <code>/api/health</code>
-      </p>
+    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '2rem' }}>
+      <div className="card card-pad" style={{ maxWidth: 460, width: '100%' }}>
+        <div className="brand" style={{ padding: 0, border: 'none', marginBottom: 6 }}>
+          teiō <span>context</span>
+        </div>
+        <p className="muted" style={{ marginTop: 0 }}>Shared context layer — canonical context lives in git; this is the control plane.</p>
 
-      <hr style={{ margin: '1.5rem 0', border: 0, borderTop: '1px solid #ddd' }} />
+        <hr style={{ border: 0, borderTop: '1px solid var(--border)', margin: '16px 0' }} />
 
-      {userId ? (
-        <>
-          <p>
-            Signed in as <code>{userId}</code>
-          </p>
-          <p>
-            Space creation (staff): <strong>{staff ? 'allowed ✓' : 'denied — add this id to STAFF_USER_IDS'}</strong>
-          </p>
-          <p>
-            <a href="/dashboard">→ Open dashboard</a>
-          </p>
-          <SignOutButton>
-            <button type="button" style={{ padding: '0.4rem 0.9rem', cursor: 'pointer' }}>
-              Sign out
-            </button>
-          </SignOutButton>
-        </>
-      ) : (
-        <p>
-          <a href="/sign-in">Sign in</a> · <a href="/sign-up">Sign up</a>
-        </p>
-      )}
+        {userId ? (
+          <div className="stack">
+            <div>
+              <div className="faint">Signed in as</div>
+              <code>{userId}</code>
+            </div>
+            <div>
+              Space creation (Owner):{' '}
+              {staff ? <span className="tag tag-admin">allowed ✓</span> : <span className="neg">denied — add this id to STAFF_USER_IDS</span>}
+            </div>
+            <div className="row">
+              <a className="btn btn-primary" href="/dashboard">Open dashboard →</a>
+              <SignOutButton>
+                <button type="button" className="btn">Sign out</button>
+              </SignOutButton>
+            </div>
+          </div>
+        ) : (
+          <div className="row">
+            <a className="btn btn-primary" href="/sign-in">Sign in</a>
+            <a className="btn" href="/sign-up">Sign up</a>
+          </div>
+        )}
+      </div>
     </main>
   )
 }
