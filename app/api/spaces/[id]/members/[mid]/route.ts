@@ -11,7 +11,7 @@ export const runtime = 'nodejs'
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string; mid: string }> }): Promise<Response> {
   try {
     const { id, mid } = await ctx.params
-    const { principal } = await requireSpaceAccess(req, id, 'owner', authzDeps)
+    const { principal } = await requireSpaceAccess(req, id, 'admin', authzDeps)
 
     const removed = await db.removeMember(id, mid)
     if (!removed) throw new NotFoundError('member not found on this space')

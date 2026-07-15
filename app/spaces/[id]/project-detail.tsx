@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-type Role = 'owner' | 'editor' | 'reader'
+type Role = 'admin' | 'editor' | 'reader'
 type Tab = 'overview' | 'members' | 'tokens' | 'connectors' | 'history'
 
 interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string }
@@ -35,10 +35,11 @@ export default function ProjectDetail({ id }: { id: string }) {
   const [tokens, setTokens] = useState<TokenMeta[]>([])
   const [connectors, setConnectors] = useState<Connector[]>([])
   const [err, setErr] = useState<string | null>(null)
-  const isOwner = role === 'owner'
+  const isAdmin = role === 'admin'
 
   // forms
-  const [invId, setInvId] = useState(''); const [invRole, setInvRole] = useState<Role>('reader')
+  const [invEmail, setInvEmail] = useState(''); const [invRole, setInvRole] = useState<Role>('reader')
+  const [pending, setPending] = useState<{ id: string; email: string; role: string; created_at: string }[]>([])
   const [tokName, setTokName] = useState(''); const [tokRole, setTokRole] = useState('editor'); const [tokConn, setTokConn] = useState('')
   const [newToken, setNewToken] = useState<string | null>(null)
   const [connKind, setConnKind] = useState('mcp'); const [connName, setConnName] = useState(''); const [connPolicy, setConnPolicy] = useState('inherit')
@@ -51,7 +52,7 @@ export default function ProjectDetail({ id }: { id: string }) {
     if (act) { setStats(act.stats); setEvents(act.events ?? []) }
   }, [id])
 
-  const loadMembers = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/members`); if (d) setMembers(d.members ?? []) }, [id])
+  const loadMembers = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/members`); if (d) { setMembers(d.members ?? []); setPending(d.pending ?? []) } }, [id])
   const loadTokens = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/tokens`); if (d) setTokens(d.tokens ?? []) }, [id])
   const loadConnectors = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/connectors`); if (d) setConnectors(d.connectors ?? []) }, [id])
 
@@ -101,34 +102,44 @@ export default function ProjectDetail({ id }: { id: string }) {
 
       {tab === 'members' && (
         <>
-          {isOwner && (
-            <form onSubmit={async (e) => { e.preventDefault(); const r = await mutate(`/api/spaces/${id}/members`, 'POST', { principalType: 'user', principalId: invId, role: invRole }); if (r) { setInvId(''); void loadMembers() } }} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              <input value={invId} onChange={(e) => setInvId(e.target.value)} placeholder="Clerk user id (user_…)" style={{ ...input, flex: 1 }} />
+          {isAdmin && (
+            <form onSubmit={async (e) => { e.preventDefault(); const r = await mutate(`/api/spaces/${id}/members`, 'POST', { email: invEmail, role: invRole }); if (r) { setInvEmail(''); void loadMembers() } }} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <input type="email" value={invEmail} onChange={(e) => setInvEmail(e.target.value)} placeholder="teammate@company.com" style={{ ...input, flex: 1 }} />
               <select value={invRole} onChange={(e) => setInvRole(e.target.value as Role)} style={input}>
-                <option value="reader">reader</option><option value="editor">editor</option><option value="owner">owner</option>
+                <option value="reader">reader</option><option value="editor">editor</option><option value="admin">admin</option>
               </select>
-              <button type="submit" style={btn} disabled={!invId}>Invite</button>
+              <button type="submit" style={btn} disabled={!invEmail}>Invite by email</button>
             </form>
           )}
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-            <thead><tr><th style={th}>Principal</th><th style={th}>Type</th><th style={th}>Role</th><th style={th}>Added</th>{isOwner && <th style={th} />}</tr></thead>
+            <thead><tr><th style={th}>Member</th><th style={th}>Type</th><th style={th}>Role</th><th style={th}>Added</th>{isAdmin && <th style={th} />}</tr></thead>
             <tbody>
               {members.map((m) => (
                 <tr key={m.id}>
                   <td style={td}><code>{m.principal_id}</code></td><td style={td}>{m.principal_type}</td><td style={td}>{m.role}</td><td style={td}>{fmt(m.created_at)}</td>
-                  {isOwner && <td style={td}><button style={danger} onClick={async () => { if (confirm('Remove member?')) { await mutate(`/api/spaces/${id}/members/${m.id}`, 'DELETE'); void loadMembers() } }}>Remove</button></td>}
+                  {isAdmin && <td style={td}><button style={danger} onClick={async () => { if (confirm('Remove member?')) { await mutate(`/api/spaces/${id}/members/${m.id}`, 'DELETE'); void loadMembers() } }}>Remove</button></td>}
                 </tr>
               ))}
             </tbody>
           </table>
-          {!isOwner && <p style={{ color: '#777', fontSize: 13 }}>Only owners can invite or remove members.</p>}
+          {isAdmin && pending.length > 0 && (
+            <>
+              <h3 style={{ marginTop: 20, fontSize: 15 }}>Pending invitations</h3>
+              <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <thead><tr><th style={th}>Email</th><th style={th}>Role</th><th style={th}>Invited</th></tr></thead>
+                <tbody>{pending.map((p) => <tr key={p.id}><td style={td}>{p.email}</td><td style={td}>{p.role}</td><td style={td}>{fmt(p.created_at)}</td></tr>)}</tbody>
+              </table>
+              <p style={{ color: '#777', fontSize: 12 }}>They become members automatically once they sign up / log in with that email.</p>
+            </>
+          )}
+          {!isAdmin && <p style={{ color: '#777', fontSize: 13 }}>Only admins can invite or remove members.</p>}
         </>
       )}
 
       {tab === 'tokens' && (
         <>
-          {!isOwner && <p style={{ color: '#777' }}>Only owners can manage tokens.</p>}
-          {isOwner && (
+          {!isAdmin && <p style={{ color: '#777' }}>Only owners can manage tokens.</p>}
+          {isAdmin && (
             <form onSubmit={async (e) => { e.preventDefault(); const r = await mutate(`/api/spaces/${id}/tokens`, 'POST', { name: tokName, role: tokRole, connectorId: tokConn || undefined }); if (r?.token) { setNewToken(r.token); setTokName(''); void loadTokens() } }} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <input value={tokName} onChange={(e) => setTokName(e.target.value)} placeholder="Token name (e.g. ai-agent)" style={{ ...input, flex: 1 }} />
               <select value={tokRole} onChange={(e) => setTokRole(e.target.value)} style={input}><option value="reader">reader</option><option value="editor">editor</option></select>
@@ -150,13 +161,13 @@ export default function ProjectDetail({ id }: { id: string }) {
             </div>
           )}
           <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-            <thead><tr><th style={th}>Name</th><th style={th}>Role</th><th style={th}>Prefix</th><th style={th}>Last used</th><th style={th}>Created</th>{isOwner && <th style={th} />}</tr></thead>
+            <thead><tr><th style={th}>Name</th><th style={th}>Role</th><th style={th}>Prefix</th><th style={th}>Last used</th><th style={th}>Created</th>{isAdmin && <th style={th} />}</tr></thead>
             <tbody>
               {tokens.map((t) => (
                 <tr key={t.id} style={{ opacity: t.revoked_at ? 0.45 : 1 }}>
                   <td style={td}>{t.name}</td><td style={td}>{t.role}</td><td style={td}><code>{t.token_prefix}…</code></td>
                   <td style={td}>{fmt(t.last_used_at)}</td><td style={td}>{fmt(t.created_at)}</td>
-                  {isOwner && <td style={td}>{t.revoked_at ? <span style={{ color: '#999' }}>revoked</span> : <button style={danger} onClick={async () => { if (confirm('Revoke token?')) { await mutate(`/api/spaces/${id}/tokens/${t.id}`, 'DELETE'); void loadTokens() } }}>Revoke</button>}</td>}
+                  {isAdmin && <td style={td}>{t.revoked_at ? <span style={{ color: '#999' }}>revoked</span> : <button style={danger} onClick={async () => { if (confirm('Revoke token?')) { await mutate(`/api/spaces/${id}/tokens/${t.id}`, 'DELETE'); void loadTokens() } }}>Revoke</button>}</td>}
                 </tr>
               ))}
             </tbody>
@@ -166,7 +177,7 @@ export default function ProjectDetail({ id }: { id: string }) {
 
       {tab === 'connectors' && (
         <>
-          {isOwner && (
+          {isAdmin && (
             <form onSubmit={async (e) => { e.preventDefault(); const r = await mutate(`/api/spaces/${id}/connectors`, 'POST', { kind: connKind, name: connName, writeBackPolicy: connPolicy }); if (r) { setConnName(''); void loadConnectors() } }} style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
               <select value={connKind} onChange={(e) => setConnKind(e.target.value)} style={input}><option value="mcp">mcp</option><option value="teio">teio</option><option value="customer">customer</option></select>
               <input value={connName} onChange={(e) => setConnName(e.target.value)} placeholder="Connector name" style={{ ...input, flex: 1 }} />

@@ -1,4 +1,9 @@
-export type Role = 'owner' | 'editor' | 'reader'
+/**
+ * Per-project member roles. "Owner" is NOT here — it's a GLOBAL role (space
+ * creation, carried by STAFF_USER_IDS), not a per-project membership. Admin is
+ * the top per-project role (manage members/tokens/connectors/settings).
+ */
+export type Role = 'admin' | 'editor' | 'reader'
 
 export interface Principal {
   type: 'user' | 'token'

@@ -98,7 +98,7 @@ export async function POST(req: Request): Promise<Response> {
       await gh.request('DELETE', `/repos/${org}/${repo}`).catch(() => {})
       throw err
     }
-    await db.addMember(space.id, 'user', userId, 'owner', userId)
+    await db.addMember(space.id, 'user', userId, 'admin', userId)
     await db.insertAudit({ spaceId: space.id, actorType: 'user', actorId: userId, action: 'member_add', outcome: 'ok', requestId: getRequestId(req) })
 
     return Response.json({ space, provisioning }, { status: 201 })
