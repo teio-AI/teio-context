@@ -11,15 +11,16 @@ import { authzDeps } from '@/lib/wiring'
 export const runtime = 'nodejs'
 
 /**
- * GET /api/spaces/:id/tokens — list token metadata (admin). NEVER returns the
- * hash or plaintext — only name/role/owner/review/prefix/last-used, so the UI can
- * manage tokens without exposing secrets.
+ * GET /api/spaces/:id/tokens — token metadata (NEVER the hash/plaintext). Admins
+ * see all tokens; a non-admin member sees only the tokens they created (so they
+ * can manage/revoke their own — e.g. a compromised one).
  */
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   try {
     const { id } = await ctx.params
-    await requireSpaceAccess(req, id, 'admin', authzDeps)
-    return Response.json({ tokens: await db.listTokensMeta(id) })
+    const { principal, role } = await requireSpaceAccess(req, id, 'reader', authzDeps)
+    const tokens = hasRole(role, 'admin') ? await db.listTokensMeta(id) : await db.listTokensMeta(id, principal.id)
+    return Response.json({ tokens })
   } catch (err) {
     return toResponse(err)
   }
