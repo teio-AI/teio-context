@@ -13,6 +13,9 @@ const h = vi.hoisted(() => ({
   removeMember: vi.fn(async () => true),
   addMember: vi.fn(async () => ({ id: 'm9' })),
   createPendingInvitation: vi.fn(async () => ({ id: 'inv1' })),
+  cancelPendingInvitation: vi.fn(async () => true),
+  getSpaceById: vi.fn(async () => ({ id: 's1', slug: 'acme' })),
+  insertApiToken: vi.fn(async () => ({ id: 'tk1' })),
   listPendingInvitations: vi.fn(async () => [{ id: 'inv1', space_id: 's1', email: 'p@co.com', role: 'editor', invited_by: 'user_a', created_at: 't' }]),
   listPendingForEmail: vi.fn(async (): Promise<{ id: string; space_id: string; role: string; email: string; invited_by: string; created_at: string }[]> => []),
   deletePendingInvitationById: vi.fn(async () => {}),
@@ -35,11 +38,13 @@ vi.mock('@/db', () => ({
   listPendingForEmail: h.listPendingForEmail, deletePendingInvitationById: h.deletePendingInvitationById,
   listTokensMeta: h.listTokensMeta, getActivityStats: h.getActivityStats,
   listRecentAudit: h.listRecentAudit, insertAudit: h.insertAudit, getMemberRole: h.getMemberRole,
+  cancelPendingInvitation: h.cancelPendingInvitation, getSpaceById: h.getSpaceById, insertApiToken: h.insertApiToken,
 }))
 
 import { GET as membersGET, POST as membersPOST } from '@/app/api/spaces/[id]/members/route'
 import { DELETE as memberDELETE } from '@/app/api/spaces/[id]/members/[mid]/route'
-import { GET as tokensGET } from '@/app/api/spaces/[id]/tokens/route'
+import { GET as tokensGET, POST as tokensPOST } from '@/app/api/spaces/[id]/tokens/route'
+import { DELETE as inviteDELETE } from '@/app/api/spaces/[id]/invitations/[inviteId]/route'
 import { GET as activityGET } from '@/app/api/spaces/[id]/activity/route'
 import { GET as meGET } from '@/app/api/me/route'
 
@@ -128,6 +133,34 @@ describe('dashboard endpoints', () => {
   it('GET tokens → 403 for editor (admin-only)', async () => {
     h.getMemberRole.mockResolvedValue('editor')
     expect((await tokensGET(req('/api/spaces/s1/tokens'), ctx)).status).toBe(403)
+  })
+
+  it('POST tokens: a reader CANNOT mint a service editor token (403, no escalation)', async () => {
+    h.getMemberRole.mockResolvedValue('reader')
+    const res = await tokensPOST(req('/api/spaces/s1/tokens', { method: 'POST', body: JSON.stringify({ name: 'x', role: 'editor' }) }), ctx)
+    expect(res.status).toBe(403)
+    expect(h.insertApiToken).not.toHaveBeenCalled()
+  })
+
+  it('POST tokens: a reader CAN mint their own token — role inherits (null), not picked', async () => {
+    h.getMemberRole.mockResolvedValue('reader')
+    const res = await tokensPOST(req('/api/spaces/s1/tokens', { method: 'POST', body: JSON.stringify({ name: 'my-agent' }) }), ctx)
+    expect(res.status).toBe(201)
+    expect(h.insertApiToken).toHaveBeenCalledWith(expect.objectContaining({ role: null, userId: 'user_a' }))
+  })
+
+  it('DELETE invitation → 204 for admin', async () => {
+    h.getMemberRole.mockResolvedValue('admin')
+    const res = await inviteDELETE(req('/api/spaces/s1/invitations/inv1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', inviteId: 'inv1' }) })
+    expect(res.status).toBe(204)
+    expect(h.cancelPendingInvitation).toHaveBeenCalledWith('s1', 'inv1')
+  })
+
+  it('DELETE invitation → 403 for editor', async () => {
+    h.getMemberRole.mockResolvedValue('editor')
+    const res = await inviteDELETE(req('/api/spaces/s1/invitations/inv1', { method: 'DELETE' }), { params: Promise.resolve({ id: 's1', inviteId: 'inv1' }) })
+    expect(res.status).toBe(403)
+    expect(h.cancelPendingInvitation).not.toHaveBeenCalled()
   })
 
   it('GET activity → 200 with stats + events', async () => {
