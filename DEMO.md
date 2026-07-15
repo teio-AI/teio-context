@@ -23,38 +23,56 @@ default, opt-in review), git-backed two-way sync, and an in-UI context browser.
    real private git repo + branch protection, and you become its **Admin**.
 3. Open **Acme Corp** → **Overview** (version, docs, writes/7d, open proposals).
 
-## Part 2 — Put context in (agent via MCP) and see it in the UI
-4. **Tokens** tab → **Generate** a token named `my-agent` (it inherits your role).
-   Copy it once.
-5. Wire it to Claude (MCP) — user-level, nothing added to any code repo:
+## Part 2 — Install the client kit (once, ~2 min)
+The developer flow is `/teio-start` + `/teio-complete` in Claude Code. Set up once:
+
+4. **Generate a token** — project → **Tokens** tab → **Generate** `my-agent`
+   (inherits your role). Copy it once.
+5. **Install the commands** (user-level file copy, nothing touches any code repo):
    ```bash
+   mkdir -p ~/.claude/commands
+   cp ~/projects/teio-context/client-kit/.claude/commands/*.md ~/.claude/commands/
+   ```
+6. **Register the MCP server.** It is NOT on npm yet, so run it from the local
+   build (no `npx`/download needed):
+   ```bash
+   cd ~/projects/teio-context/packages/teio-context-mcp && bun run build
    claude mcp add --scope user teio-context \
      --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
      --env TEIO_CONTEXT_TOKEN=<the token> \
-     -- npx -y teio-context-mcp          # or: node <path>/packages/teio-context-mcp/dist/server.js
+     -- node ~/projects/teio-context/packages/teio-context-mcp/dist/server.js
    ```
-6. In Claude: *"list my context spaces, then propose_update `context/overview.md`
-   with 'Acme is a B2B logistics client, billed net-15.'"* — it writes via the API.
-7. Back in the dashboard → **Context** tab → the doc appears; click it to **read the
-   markdown**. (This is context captured by an agent, visible to everyone.)
-   *(No MCP handy? Skip 5–6 and write via the browser console — see Appendix.)*
+   *(After you `npm publish` the package, this becomes `-- npx -y teio-context-mcp`.)*
+   Restart Claude Code so it picks up the commands + server.
 
-## Part 3 — Invite a teammate by email
-8. **Members** tab → invite `teammate@company.com` as **editor** → they get a Clerk
-   email. **Accept** → sign up (ticket creates the account) → they land on the
-   dashboard and are auto-added as a member (reconciled by verified email).
-9. Show roles: Owner (you, non-removable), Admin, Editor, Reader; last-admin and
-   Owner can't be removed.
+## Part 3 — The developer day: `/teio-start` → work → `/teio-complete`
+7. In any repo/folder, run **`/teio-start`**. First time (empty context) it
+   **bootstraps** context from that repo/folder; otherwise it loads the current
+   context into the session and briefs you.
+8. Make a change / learn something, then run **`/teio-complete`** — it writes the
+   updates back (updates the docs + logs a handoff entry).
+9. Back in the dashboard → **Context** tab → the docs appear; click one to **read
+   the markdown**. That's context captured by the agent, visible to everyone.
+   *(No Claude Code handy? Write via the browser console — see Appendix — then open
+   the Context tab.)*
 
-## Part 4 — Governed two-way writes (the core)
-10. Generate a second token with **"require review"** on (an untrusted agent).
-11. Have it `propose_update` a doc → the write **opens a PR** instead of merging.
-    Show the PR on GitHub (open the repo from Overview) and the **History** tab.
-12. A normal token's write **auto-merges** to `main`. Two writers editing the same
+## Part 4 — Invite a teammate by email
+10. **Members** tab → invite `teammate@company.com` as **editor** → they get a Clerk
+    email. **Accept** → sign up (ticket creates the account) → they land on the
+    dashboard and are auto-added as a member (reconciled by verified email).
+11. Show roles: Owner (you, non-removable), Admin, Editor, Reader; last-admin and
+    Owner can't be removed.
+
+## Part 5 — Governed two-way writes (the core)
+12. Generate a second token with **"require review"** on (an untrusted agent).
+13. When that token writes (or its `/teio-complete`), the write **opens a PR**
+    instead of merging. Show the PR on GitHub (open the repo from Overview) and the
+    **History** tab.
+14. A normal token's write **auto-merges** to `main`. Two writers editing the same
     line → one merges, the other becomes a **conflict PR** (no lost updates).
 
-## Part 5 — Search
-13. Any member/agent can **search** the project's context (FTS with highlighted
+## Part 6 — Search
+15. Any member/agent can **search** the project's context (FTS with highlighted
     snippets) via the API/MCP.
 
 ## Close
