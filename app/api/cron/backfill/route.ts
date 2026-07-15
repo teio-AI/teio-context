@@ -41,7 +41,6 @@ async function runBackfill(): Promise<void> {
       if (head !== space.current_sha) {
         const result = await reindexAll(gh, repo, space.id, head)
         await db.setCurrentSha(space.id, head)
-        await db.markCursorsStale(space.id)
         await db.insertAudit({ spaceId: space.id, actorType: 'github', action: 'backfill', path: null, resultSha: head, outcome: 'ok' })
         // GitHub capped the tree listing → this space is too large to fully
         // index in one pass and is now under-indexed. Record it loudly rather

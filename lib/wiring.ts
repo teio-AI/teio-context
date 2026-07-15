@@ -47,19 +47,15 @@ export const authzDeps: AuthzDeps = {
 }
 
 /**
- * Effective write-back policy: a token's bound connector overrides the space
- * default. Resolved from the token's own stored connector_id — never from
- * anything the caller asserts — so an MCP-issued token can't claim to be the
- * trusted TEIO connector (ARCHITECTURE §3.1).
+ * Effective write-back policy. Default is auto-merge; a token opts into review
+ * (proposal_only) via its own `proposal_only` flag — never anything the caller
+ * asserts. Humans (Clerk members) always auto-merge.
  */
-async function resolveWritePolicy(spaceId: string, principal: Principal): Promise<WritePolicy> {
-  const space = await db.getSpaceById(spaceId)
-  if (!space) throw new NotFoundError(`space not found: ${spaceId}`)
-  if (principal.type === 'token') {
-    const connectorPolicy = await db.resolveConnectorPolicyForToken(principal.id, space.write_back_default)
-    if (connectorPolicy) return connectorPolicy
+async function resolveWritePolicy(_spaceId: string, principal: Principal): Promise<WritePolicy> {
+  if (principal.type === 'token' && (await db.getTokenProposalOnly(principal.id))) {
+    return 'proposal_only'
   }
-  return space.write_back_default
+  return 'auto_merge_clean'
 }
 
 let _contextService: ContextService | null = null
@@ -78,7 +74,6 @@ export function getContextService(): ContextService {
       setCurrentSha: db.setCurrentSha,
       reindexChanged: (gh, repo, spaceId, changed, commitSha) =>
         reindexChangedPaths(gh, repo, spaceId, changed, commitSha),
-      markCursorsStale: db.markCursorsStale,
       recordProposal: db.recordProposal,
       audit: db.insertAudit,
       // Passed as a thunk (not called here) so constructing the service for a

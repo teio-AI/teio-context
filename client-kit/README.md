@@ -56,29 +56,25 @@ above if you don't want that.
 Machine auth — no login flow. The MCP server sends your `TEIO_CONTEXT_TOKEN` as a
 `Bearer` header on every API call; teio-context verifies it server-side (sha256,
 constant-time), resolves the project + role, and enforces access. Notes:
-- A **space owner** mints the token (`POST /api/spaces/:id/tokens`) and hands it
-  to you. It's scoped to **one project** with a role (reader/editor) and, if bound
-  to a connector, a write policy.
-- Issue **one token per person/agent per project** — that way each is revocable
-  independently (`DELETE /api/spaces/:id/tokens/:tid`) and the audit log attributes
-  every write to the right identity.
+- A member mints a token for themselves in the dashboard (Tokens tab) — its role
+  **follows your membership** (admin/editor/reader). Non-human consumers get a
+  **service token** with an explicit role from an admin.
+- Issue **one token per person/agent per project** — each is revocable
+  independently and the audit log attributes every write to the right identity.
 - The token lives in your **user-level** MCP config, not in any repo. Treat it
   like an API key. (Humans use Clerk sign-in for the web/API; machines/agents use
   these tokens.)
 
-## Which token?
+## What writes do
 
-The token's role + connector policy decides what writes do:
+By **default, writes auto-merge** to `main` (with full git history + audit;
+conflicts still auto-open a PR). Flip a token's **"require review"** toggle to make
+its writes open a PR instead — good for an AI agent you want a human to approve.
 
-| Token | `/teio-start` bootstrap | `/teio-complete` writes |
-|-------|------------------------|-------------------|
-| **editor + auto-merge connector** | lands directly on `main` | merges directly |
-| **editor + propose-only connector** | opens PRs | opens PRs (reviewed) |
-| **reader** | ❌ can't write (read-only) | ❌ |
-
-For a developer's own workflow, an **editor + auto-merge** token is the smooth
-choice. Use **propose-only** if you want every context change reviewed before it
-lands (good for AI-agent tokens).
+| Token | Can write? | With "require review" |
+|-------|-----------|-----------------------|
+| **editor / admin** (or a member token that inherits one) | ✅ auto-merges | opens a PR |
+| **reader** | ❌ read-only | — |
 
 ## Working on several projects
 

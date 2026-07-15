@@ -16,8 +16,7 @@ const h = vi.hoisted(() => ({
   listPendingInvitations: vi.fn(async () => [{ id: 'inv1', space_id: 's1', email: 'p@co.com', role: 'editor', invited_by: 'user_a', created_at: 't' }]),
   listPendingForEmail: vi.fn(async (): Promise<{ id: string; space_id: string; role: string; email: string; invited_by: string; created_at: string }[]> => []),
   deletePendingInvitationById: vi.fn(async () => {}),
-  listTokensMeta: vi.fn(async () => [{ id: 't1', name: 'ai', role: 'editor', token_prefix: 'tctx_x_ab', connector_id: null, created_by: 'u', created_at: 't', last_used_at: null, revoked_at: null, expires_at: null }]),
-  listConnectors: vi.fn(async () => [{ id: 'c1', kind: 'mcp', name: 'agent', write_back_policy: 'proposal_only', status: 'active', created_at: 't' }]),
+  listTokensMeta: vi.fn(async () => [{ id: 't1', name: 'ai', role: 'editor', user_id: null, proposal_only: true, token_prefix: 'tctx_x_ab', created_by: 'u', created_at: 't', last_used_at: null, revoked_at: null, expires_at: null }]),
   getActivityStats: vi.fn(async () => ({ current_sha: 'abc', last_updated: 't', writes_7d: 3, docs: 5, open_proposals: 1 })),
   listRecentAudit: vi.fn(async () => [{ id: '1', ts: 't', actor_type: 'user', actor_id: 'u', actor_display: null, action: 'cas_write', path: 'context/a.md', outcome: 'ok' }]),
   insertAudit: vi.fn(async () => {}),
@@ -34,14 +33,13 @@ vi.mock('@/db', () => ({
   listMembers: h.listMembers, removeMember: h.removeMember, addMember: h.addMember,
   createPendingInvitation: h.createPendingInvitation, listPendingInvitations: h.listPendingInvitations,
   listPendingForEmail: h.listPendingForEmail, deletePendingInvitationById: h.deletePendingInvitationById,
-  listTokensMeta: h.listTokensMeta, listConnectors: h.listConnectors, getActivityStats: h.getActivityStats,
+  listTokensMeta: h.listTokensMeta, getActivityStats: h.getActivityStats,
   listRecentAudit: h.listRecentAudit, insertAudit: h.insertAudit, getMemberRole: h.getMemberRole,
 }))
 
 import { GET as membersGET, POST as membersPOST } from '@/app/api/spaces/[id]/members/route'
 import { DELETE as memberDELETE } from '@/app/api/spaces/[id]/members/[mid]/route'
 import { GET as tokensGET } from '@/app/api/spaces/[id]/tokens/route'
-import { GET as connectorsGET } from '@/app/api/spaces/[id]/connectors/route'
 import { GET as activityGET } from '@/app/api/spaces/[id]/activity/route'
 import { GET as meGET } from '@/app/api/me/route'
 
@@ -130,12 +128,6 @@ describe('dashboard endpoints', () => {
   it('GET tokens → 403 for editor (admin-only)', async () => {
     h.getMemberRole.mockResolvedValue('editor')
     expect((await tokensGET(req('/api/spaces/s1/tokens'), ctx)).status).toBe(403)
-  })
-
-  it('GET connectors → 200 for a reader', async () => {
-    const res = await connectorsGET(req('/api/spaces/s1/connectors'), ctx)
-    expect(res.status).toBe(200)
-    expect((await res.json()).connectors).toHaveLength(1)
   })
 
   it('GET activity → 200 with stats + events', async () => {

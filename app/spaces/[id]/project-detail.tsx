@@ -4,12 +4,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { Shell } from '../../shell'
 
 type Role = 'admin' | 'editor' | 'reader'
-type Tab = 'overview' | 'members' | 'tokens' | 'connectors' | 'history'
+type Tab = 'overview' | 'members' | 'tokens' | 'history'
 
 interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string; email?: string | null }
 interface Pending { id: string; email: string; role: string; created_at: string }
-interface TokenMeta { id: string; name: string; role: string; token_prefix: string; connector_id: string | null; created_at: string; last_used_at: string | null; revoked_at: string | null }
-interface Connector { id: string; kind: string; name: string; write_back_policy: string; status: string }
+interface TokenMeta { id: string; name: string; role: string | null; user_id: string | null; proposal_only: boolean; token_prefix: string; created_at: string; last_used_at: string | null; revoked_at: string | null }
 interface AuditEvent { id: string; ts: string; actor_type: string; actor_display: string | null; actor_id: string | null; action: string; path: string | null; outcome: string }
 interface Stats { current_sha: string | null; last_updated: string | null; writes_7d: number; docs: number; open_proposals: number }
 
@@ -30,14 +29,12 @@ export default function ProjectDetail({ id }: { id: string }) {
   const [members, setMembers] = useState<Member[]>([])
   const [pending, setPending] = useState<Pending[]>([])
   const [tokens, setTokens] = useState<TokenMeta[]>([])
-  const [connectors, setConnectors] = useState<Connector[]>([])
   const [err, setErr] = useState<string | null>(null)
   const isAdmin = role === 'admin'
 
   const [invEmail, setInvEmail] = useState(''); const [invRole, setInvRole] = useState<Role>('reader')
-  const [tokName, setTokName] = useState(''); const [tokRole, setTokRole] = useState('editor'); const [tokConn, setTokConn] = useState('')
+  const [tokName, setTokName] = useState(''); const [tokRole, setTokRole] = useState(''); const [tokReview, setTokReview] = useState(false)
   const [newToken, setNewToken] = useState<string | null>(null)
-  const [connKind, setConnKind] = useState('mcp'); const [connName, setConnName] = useState(''); const [connPolicy, setConnPolicy] = useState('inherit')
 
   const loadCore = useCallback(async () => {
     const sp = await getJSON('/api/spaces')
@@ -48,14 +45,12 @@ export default function ProjectDetail({ id }: { id: string }) {
   }, [id])
   const loadMembers = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/members`); if (d) { setMembers(d.members ?? []); setPending(d.pending ?? []) } }, [id])
   const loadTokens = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/tokens`); if (d) setTokens(d.tokens ?? []) }, [id])
-  const loadConnectors = useCallback(async () => { const d = await getJSON(`/api/spaces/${id}/connectors`); if (d) setConnectors(d.connectors ?? []) }, [id])
 
   useEffect(() => { void loadCore() }, [loadCore])
   useEffect(() => {
     if (tab === 'members') void loadMembers()
-    if (tab === 'tokens') { void loadTokens(); void loadConnectors() }
-    if (tab === 'connectors') void loadConnectors()
-  }, [tab, loadMembers, loadTokens, loadConnectors])
+    if (tab === 'tokens') void loadTokens()
+  }, [tab, loadMembers, loadTokens])
 
   async function mutate(url: string, method: string, body?: unknown): Promise<any> {
     setErr(null)
@@ -64,7 +59,7 @@ export default function ProjectDetail({ id }: { id: string }) {
     return r.status === 204 ? {} : r.json().catch(() => ({}))
   }
 
-  const tabs: Tab[] = ['overview', 'members', 'tokens', 'connectors', 'history']
+  const tabs: Tab[] = ['overview', 'members', 'tokens', 'history']
 
   return (
     <Shell>
@@ -143,16 +138,18 @@ export default function ProjectDetail({ id }: { id: string }) {
         <div className="stack">
           {!isAdmin && <p className="faint">Only admins can manage tokens.</p>}
           {isAdmin && (
-            <form className="card card-pad" onSubmit={async (e) => { e.preventDefault(); const r = await mutate(`/api/spaces/${id}/tokens`, 'POST', { name: tokName, role: tokRole, connectorId: tokConn || undefined }); if (r?.token) { setNewToken(r.token); setTokName(''); void loadTokens() } }}>
+            <form className="card card-pad" onSubmit={async (e) => { e.preventDefault(); const body: Record<string, unknown> = { name: tokName, proposalOnly: tokReview }; if (tokRole) body.role = tokRole; const r = await mutate(`/api/spaces/${id}/tokens`, 'POST', body); if (r?.token) { setNewToken(r.token); setTokName(''); void loadTokens() } }}>
               <div className="row">
                 <input className="input" style={{ flex: 1 }} value={tokName} onChange={(e) => setTokName(e.target.value)} placeholder="Token name — e.g. ai-agent" />
-                <select className="select" value={tokRole} onChange={(e) => setTokRole(e.target.value)}><option value="reader">reader</option><option value="editor">editor</option></select>
-                <select className="select" value={tokConn} onChange={(e) => setTokConn(e.target.value)}>
-                  <option value="">no connector</option>
-                  {connectors.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.write_back_policy})</option>)}
+                <select className="select" value={tokRole} onChange={(e) => setTokRole(e.target.value)}>
+                  <option value="">my role (inherited)</option>
+                  <option value="reader">service · reader</option>
+                  <option value="editor">service · editor</option>
                 </select>
+                <label className="row faint" style={{ gap: 5 }}><input type="checkbox" checked={tokReview} onChange={(e) => setTokReview(e.target.checked)} /> require review</label>
                 <button type="submit" className="btn btn-primary" disabled={!tokName}>Generate</button>
               </div>
+              <div className="faint" style={{ marginTop: 8 }}>“My role” = a token for your own agent/MCP (follows your membership). “Service” = for a non-human consumer with a fixed role. “Require review” makes its writes open a PR instead of auto-merging.</div>
             </form>
           )}
           {newToken && (
@@ -167,40 +164,18 @@ export default function ProjectDetail({ id }: { id: string }) {
           )}
           <div className="card">
             <table className="table">
-              <thead><tr><th>Name</th><th>Role</th><th>Prefix</th><th>Last used</th><th>Created</th>{isAdmin && <th />}</tr></thead>
+              <thead><tr><th>Name</th><th>Role</th><th>Writes</th><th>Last used</th><th>Created</th>{isAdmin && <th />}</tr></thead>
               <tbody>
                 {tokens.map((t) => (
                   <tr key={t.id} style={{ opacity: t.revoked_at ? 0.45 : 1 }}>
-                    <td>{t.name}</td><td className="muted">{t.role}</td><td><code>{t.token_prefix}…</code></td>
+                    <td>{t.name}</td>
+                    <td className="muted">{t.role ?? (t.user_id ? 'member' : '—')}</td>
+                    <td>{t.proposal_only ? <span className="tag tag-editor">review → PR</span> : <span className="muted">auto-merge</span>}</td>
                     <td className="muted">{fmt(t.last_used_at)}</td><td className="muted">{fmt(t.created_at)}</td>
                     {isAdmin && <td style={{ textAlign: 'right' }}>{t.revoked_at ? <span className="faint">revoked</span> : <button className="btn btn-sm btn-danger" onClick={async () => { if (confirm('Revoke token?')) { await mutate(`/api/spaces/${id}/tokens/${t.id}`, 'DELETE'); void loadTokens() } }}>Revoke</button>}</td>}
                   </tr>
                 ))}
                 {tokens.length === 0 && <tr><td className="muted" colSpan={6}>No tokens yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'connectors' && (
-        <div className="stack">
-          {isAdmin && (
-            <form className="card card-pad" onSubmit={async (e) => { e.preventDefault(); const r = await mutate(`/api/spaces/${id}/connectors`, 'POST', { kind: connKind, name: connName, writeBackPolicy: connPolicy }); if (r) { setConnName(''); void loadConnectors() } }}>
-              <div className="row">
-                <select className="select" value={connKind} onChange={(e) => setConnKind(e.target.value)}><option value="mcp">mcp</option><option value="teio">teio</option><option value="customer">customer</option></select>
-                <input className="input" style={{ flex: 1 }} value={connName} onChange={(e) => setConnName(e.target.value)} placeholder="Connector name" />
-                <select className="select" value={connPolicy} onChange={(e) => setConnPolicy(e.target.value)}><option value="inherit">inherit</option><option value="auto_merge_clean">auto_merge_clean</option><option value="proposal_only">proposal_only</option></select>
-                <button type="submit" className="btn btn-primary" disabled={!connName}>Add</button>
-              </div>
-            </form>
-          )}
-          <div className="card">
-            <table className="table">
-              <thead><tr><th>Name</th><th>Kind</th><th>Write-back policy</th><th>Status</th></tr></thead>
-              <tbody>
-                {connectors.map((c) => <tr key={c.id}><td>{c.name}</td><td className="muted">{c.kind}</td><td>{c.write_back_policy}</td><td className="muted">{c.status}</td></tr>)}
-                {connectors.length === 0 && <tr><td className="muted" colSpan={4}>No connectors yet.</td></tr>}
               </tbody>
             </table>
           </div>
