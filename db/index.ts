@@ -96,7 +96,8 @@ export async function findTokenByPrefix(prefix: string): Promise<TokenRow | null
 }
 
 export async function insertApiToken(input: {
-  spaceId: string
+  /** null for a PERSONAL token (unbound; acts as the user across all projects). */
+  spaceId: string | null
   name: string
   tokenPrefix: string
   tokenHash: string
@@ -124,6 +125,26 @@ export async function insertApiToken(input: {
 export async function getTokenProposalOnly(tokenId: string): Promise<boolean> {
   const rows = (await sql`select proposal_only from api_tokens where id = ${tokenId}`) as { proposal_only: boolean }[]
   return rows[0]?.proposal_only ?? false
+}
+
+// ---- personal access tokens (unbound; act as the user across all projects) ----
+
+export async function listPersonalTokens(userId: string): Promise<TokenMetaRow[]> {
+  return (await sql`
+    select id, name, role, user_id, proposal_only, token_prefix, created_by, created_at,
+           last_used_at, revoked_at, expires_at
+    from api_tokens where space_id is null and user_id = ${userId}
+    order by created_at desc
+  `) as TokenMetaRow[]
+}
+
+export async function revokePersonalToken(userId: string, tokenId: string): Promise<boolean> {
+  const rows = (await sql`
+    update api_tokens set revoked_at = now()
+    where id = ${tokenId} and space_id is null and user_id = ${userId} and revoked_at is null
+    returning id
+  `) as { id: string }[]
+  return rows.length > 0
 }
 
 export async function touchTokenLastUsed(tokenId: string): Promise<void> {

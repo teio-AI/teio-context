@@ -31,9 +31,17 @@ export async function resolvePrincipal(req: Request, deps: AuthzDeps): Promise<R
   const resolved = await resolveMachineToken(req.headers.get('authorization'), deps.findTokenByPrefix)
   if (resolved) {
     if (deps.touchTokenLastUsed) void deps.touchTokenLastUsed(resolved.row.id).catch(() => {})
-    // A member-owned token's role follows the member's current membership (so a
-    // role change / removal takes effect immediately). A service token carries
-    // its own role.
+
+    // PERSONAL token (space-unbound): authenticates AS the user across all their
+    // projects. Resolve to the user principal so every downstream check (per-space
+    // role, Owner, listSpaces, write policy) treats it exactly like that user.
+    if (resolved.row.space_id === null) {
+      if (!resolved.row.user_id) throw new UnauthorizedError('malformed personal token')
+      return { principal: { type: 'user', id: resolved.row.user_id } }
+    }
+
+    // Per-space token. A member-owned token's role follows the member's current
+    // membership; a service token carries its own role.
     let role: Role | null = resolved.row.role
     if (resolved.row.user_id) {
       role = await deps.getMemberRole(resolved.row.space_id, 'user', resolved.row.user_id)

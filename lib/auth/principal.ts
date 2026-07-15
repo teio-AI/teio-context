@@ -4,7 +4,8 @@ import { tokenPrefix, verifyToken } from './tokens'
 
 export interface TokenRow {
   id: string
-  space_id: string
+  /** null for a PERSONAL token — it authenticates as `user_id` across all projects. */
+  space_id: string | null
   token_hash: string
   /** null for a member-owned token (role follows the member); set for a service token. */
   role: 'reader' | 'editor' | null
