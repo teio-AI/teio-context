@@ -6,8 +6,11 @@ export interface TokenRow {
   id: string
   space_id: string
   token_hash: string
-  role: 'reader' | 'editor'
-  connector_id: string | null
+  /** null for a member-owned token (role follows the member); set for a service token. */
+  role: 'reader' | 'editor' | null
+  /** set when the token belongs to a member — effective role follows their membership. */
+  user_id: string | null
+  proposal_only: boolean
   expires_at: string | null
   revoked_at: string | null
 }

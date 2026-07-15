@@ -42,7 +42,6 @@ function makeService(policy: WritePolicy, routes: Record<string, Stub>) {
   const recordProposal = vi.fn(async () => 'prop-1')
   const audit = vi.fn(async () => {})
   const reindexChanged = vi.fn(async () => ({ indexed: 1, removed: 0 }))
-  const markCursorsStale = vi.fn(async () => {})
   const deps: ContextServiceDeps = {
     loadSpaceRepo: async () => ({ owner: 'teio', repo: 'teio-context-acme', defaultBranch: 'main' }),
     clientFor: async () => gh(routes),
@@ -52,20 +51,19 @@ function makeService(policy: WritePolicy, routes: Record<string, Stub>) {
     resolveWritePolicy: async () => policy,
     setCurrentSha,
     reindexChanged,
-    markCursorsStale,
     recordProposal,
     audit,
     botCommitter: () => ({ name: 'bot', email: 'bot@x' }),
     newBranchName: () => 'proposal/fixed',
   }
-  return { svc: new GitContextService(deps), setCurrentSha, recordProposal, audit, reindexChanged, markCursorsStale }
+  return { svc: new GitContextService(deps), setCurrentSha, recordProposal, audit, reindexChanged }
 }
 
 const principal = { type: 'user', id: 'user_1' } as const
 
 describe('GitContextService write persistence', () => {
-  it('upsert fast-path merged → reindex + markCursorsStale + setCurrentSha + audit(cas_write)', async () => {
-    const { svc, setCurrentSha, recordProposal, audit, reindexChanged, markCursorsStale } = makeService('auto_merge_clean', {
+  it('upsert fast-path merged → reindex + setCurrentSha + audit(cas_write)', async () => {
+    const { svc, setCurrentSha, recordProposal, audit, reindexChanged } = makeService('auto_merge_clean', {
       'PUT /contents/': { status: 200, data: { commit: { sha: 'CAS' } } },
     })
     const res = await svc.proposeUpdate(principal, 's1', { path: 'context/a.md', content: 'hi', baseBlob: 'B0' })
@@ -81,7 +79,6 @@ describe('GitContextService write persistence', () => {
       { upserted: ['context/a.md'], removed: [] },
       'CAS',
     )
-    expect(markCursorsStale).toHaveBeenCalledWith('s1')
     expect(setCurrentSha).toHaveBeenCalledWith('s1', 'CAS')
     expect(recordProposal).not.toHaveBeenCalled()
     expect(audit).toHaveBeenCalledWith(
@@ -90,13 +87,12 @@ describe('GitContextService write persistence', () => {
   })
 
   it('proposal_only → no derived-state update; recordProposal + audit(propose) + proposalId', async () => {
-    const { svc, setCurrentSha, recordProposal, audit, reindexChanged, markCursorsStale } = makeService('proposal_only', ok3way)
+    const { svc, setCurrentSha, recordProposal, audit, reindexChanged } = makeService('proposal_only', ok3way)
     const res = await svc.proposeUpdate(principal, 's1', { path: 'context/a.md', content: 'hi', baseVersion: 'BASE' })
 
     expect(res).toEqual({ status: 'proposal', prUrl: 'https://gh/pr/9', proposalId: 'prop-1' })
-    // A proposal doesn't touch main, so nothing is reindexed/staled/advanced.
+    // A proposal doesn't touch main, so nothing is reindexed/advanced.
     expect(reindexChanged).not.toHaveBeenCalled()
-    expect(markCursorsStale).not.toHaveBeenCalled()
     expect(setCurrentSha).not.toHaveBeenCalled()
     expect(recordProposal).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'proposal', branchRef: 'refs/heads/proposal/fixed', prNumber: 9 }),

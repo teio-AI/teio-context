@@ -56,8 +56,7 @@ describe.skipIf(!shouldRun)('db integration (real Postgres)', () => {
     expect(await db.getMemberRole(spaceId, 'user', 'nobody')).toBeNull()
   })
 
-  it('tokens: prefix lookup + hash verify + connector binding', async () => {
-    const connector = await db.createConnector({ spaceId, kind: 'mcp', name: `mcp-${uniq}`, writeBackPolicy: 'inherit' })
+  it('tokens: prefix lookup + hash verify + proposal_only flag', async () => {
     const gen = generateToken(slug)
     const { id: tokenId } = await db.insertApiToken({
       spaceId,
@@ -65,17 +64,14 @@ describe.skipIf(!shouldRun)('db integration (real Postgres)', () => {
       tokenPrefix: gen.prefix,
       tokenHash: gen.hash,
       role: 'editor',
-      connectorId: connector.id,
+      proposalOnly: true,
       createdBy: 'sys',
     })
     const row = await db.findTokenByPrefix(gen.prefix)
     expect(row?.id).toBe(tokenId)
     expect(verifyToken(gen.token, row!.token_hash)).toBe(true)
     expect(verifyToken('tctx_wrong', row!.token_hash)).toBe(false)
-    expect(await db.getConnectorIdForToken(tokenId)).toBe(connector.id)
-
-    // connector-policy resolution: inherit → space default
-    expect(await db.resolveConnectorPolicyForToken(tokenId, 'auto_merge_clean')).toBe('auto_merge_clean')
+    expect(await db.getTokenProposalOnly(tokenId)).toBe(true)
 
     // revoke is idempotent-ish: first succeeds, second finds nothing
     expect(await db.revokeToken(spaceId, tokenId)).toBe(true)
@@ -137,10 +133,8 @@ describe.skipIf(!shouldRun)('db integration (real Postgres)', () => {
     expect(await db.recordDelivery(deliveryId, 'push')).toBe(false)
   })
 
-  it('cursors + current_sha update', async () => {
+  it('current_sha update', async () => {
     await db.setCurrentSha(spaceId, 'sha1')
     expect((await db.getSpaceById(spaceId))?.current_sha).toBe('sha1')
-    // a connector exists from the tokens test; mark stale then ack
-    await db.markCursorsStale(spaceId) // no throw even if no cursor rows yet
   })
 })

@@ -61,10 +61,10 @@ answer: each token = a different agent/app; MCP bonus below connects a real one.
 `200`. Access is per-project and role-based."
 
 **5) Two-way sync with policy — the core idea.**
-"Trusted systems (our platform) auto-merge straight to main. An **AI agent's**
-edit does *not* touch main — it opens a **pull request** for a human to review.
-Same API, different governance per connector. Open the PR tab — that's the AI's
-proposed change."
+"By default writes auto-merge straight to main. But a token can opt into
+**review** — then its edits open a **pull request** for a human instead of
+merging. The AI-agent token here has review on, so its edit is a PR. Same API,
+per-token governance. Open the PR tab — that's the AI's proposed change."
 
 **6) Concurrent edits never clobber.**
 "Two writers edit the same line from the same starting point. First wins and
@@ -82,12 +82,13 @@ searchable — served over git, REST, and MCP."
 ---
 
 ## How people & agents are "invited" (expect this question)
-- **People**: added to a project by **role** — `owner` / `editor` / `reader` —
-  keyed by their Clerk user id (they get it by signing in at `/sign-in`; a future
-  UI turns this into an email invite). The demo adds a teammate as `editor`.
-- **Services / AI agents**: issued a **scoped machine token** bound to a
-  connector, which sets its write policy (`auto_merge_clean` vs `proposal_only`).
-  Revocable, per-project, never mirrored anywhere.
+- **People**: invited by **email** with a **role** — `admin` / `editor` / `reader`.
+  They accept by signing up / logging in; membership is materialized from their
+  verified email. (Owner is the global role that creates projects.)
+- **Services / AI agents**: issued a **scoped token** — a member's own token
+  inherits their role, or an admin mints a service token with an explicit role.
+  An optional **"require review"** flag makes its writes open a PR. Revocable,
+  per-project, never mirrored anywhere.
 
 ## Bonus: connect a *real* LLM over MCP (optional, strong finish)
 teio-context ships an MCP server, so a real Claude (Desktop/Code) can read/write

@@ -117,14 +117,11 @@ async function provisionProject(gh: GitHubClient, slug: string, name: string, ow
   await db.addMember(space.id, 'user', owner, 'admin', owner)
   await db.addMember(space.id, 'user', 'user_teammate_demo', 'editor', owner)
 
-  // Scoped machine identities: the TEIO platform (auto-merge), an AI agent
-  // (propose-only → PR), and a read-only viewer.
-  const teioConn = await db.createConnector({ spaceId: space.id, kind: 'teio', name: 'teio-platform', writeBackPolicy: 'auto_merge_clean' })
-  const mcpConn = await db.createConnector({ spaceId: space.id, kind: 'mcp', name: 'ai-agent', writeBackPolicy: 'proposal_only' })
-
-  const mkToken = async (nm: string, role: 'reader' | 'editor', connectorId?: string) => {
+  // Scoped service tokens: the TEIO platform (auto-merge), an AI agent
+  // (proposal_only → PR), and a read-only viewer.
+  const mkToken = async (nm: string, role: 'reader' | 'editor', proposalOnly = false) => {
     const t = generateToken(slug)
-    await db.insertApiToken({ spaceId: space.id, name: nm, tokenPrefix: t.prefix, tokenHash: t.hash, role, connectorId, createdBy: owner })
+    await db.insertApiToken({ spaceId: space.id, name: nm, tokenPrefix: t.prefix, tokenHash: t.hash, role, proposalOnly, createdBy: owner })
     return t.token
   }
 
@@ -134,8 +131,8 @@ async function provisionProject(gh: GitHubClient, slug: string, name: string, ow
     name,
     repoUrl: `https://github.com/${cfg.org}/${repo}`,
     tokens: {
-      platform: await mkToken('teio-platform', 'editor', teioConn.id),
-      agent: await mkToken('ai-agent', 'editor', mcpConn.id),
+      platform: await mkToken('teio-platform', 'editor'),
+      agent: await mkToken('ai-agent', 'editor', true),
       reader: await mkToken('readonly-viewer', 'reader'),
     },
   }

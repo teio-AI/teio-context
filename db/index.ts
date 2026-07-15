@@ -89,7 +89,7 @@ export const getMemberRole: MemberLookup = async (spaceId, principalType, princi
 
 export async function findTokenByPrefix(prefix: string): Promise<TokenRow | null> {
   const rows = (await sql`
-    select id, space_id, token_hash, role, connector_id, expires_at, revoked_at
+    select id, space_id, token_hash, role, user_id, proposal_only, expires_at, revoked_at
     from api_tokens where token_prefix = ${prefix}
   `) as TokenRow[]
   return rows[0] ?? null
@@ -100,20 +100,30 @@ export async function insertApiToken(input: {
   name: string
   tokenPrefix: string
   tokenHash: string
-  role: 'reader' | 'editor'
-  connectorId?: string | null
+  /** null for a member-owned token (role follows the member); set for a service token. */
+  role: 'reader' | 'editor' | null
+  /** set when the token belongs to a member (its role follows their membership). */
+  userId?: string | null
+  /** opt-in: this token's writes open a PR instead of auto-merging. */
+  proposalOnly?: boolean
   createdBy: string
   expiresAt?: string | null
 }): Promise<{ id: string }> {
   const rows = (await sql`
-    insert into api_tokens (space_id, name, token_prefix, token_hash, role, connector_id, created_by, expires_at)
-    values (${input.spaceId}, ${input.name}, ${input.tokenPrefix}, ${input.tokenHash}, ${input.role},
-            ${input.connectorId ?? null}, ${input.createdBy}, ${input.expiresAt ?? null})
+    insert into api_tokens (space_id, name, token_prefix, token_hash, role, user_id, proposal_only, created_by, expires_at)
+    values (${input.spaceId}, ${input.name}, ${input.tokenPrefix}, ${input.tokenHash}, ${input.role ?? null},
+            ${input.userId ?? null}, ${input.proposalOnly ?? false}, ${input.createdBy}, ${input.expiresAt ?? null})
     returning id
   `) as { id: string }[]
   const row = rows[0]
   if (!row) throw new Error('insertApiToken: insert returned no row')
   return row
+}
+
+/** The proposal_only flag for a token (write-back policy). */
+export async function getTokenProposalOnly(tokenId: string): Promise<boolean> {
+  const rows = (await sql`select proposal_only from api_tokens where id = ${tokenId}`) as { proposal_only: boolean }[]
+  return rows[0]?.proposal_only ?? false
 }
 
 export async function touchTokenLastUsed(tokenId: string): Promise<void> {
@@ -175,58 +185,6 @@ export async function searchDocuments(spaceId: string, query: string, limit = 20
     snippet: r.snippet ?? undefined,
     highlight: r.highlight ?? undefined,
   }))
-}
-
-export interface ConnectorRow {
-  id: string
-  space_id: string
-  kind: 'mcp' | 'teio' | 'customer'
-  name: string
-  write_back_policy: 'auto_merge_clean' | 'proposal_only' | 'inherit'
-  status: 'active' | 'disabled'
-}
-
-export async function createConnector(input: {
-  spaceId: string
-  kind: ConnectorRow['kind']
-  name: string
-  writeBackPolicy: ConnectorRow['write_back_policy']
-}): Promise<ConnectorRow> {
-  const rows = (await sql`
-    insert into connectors (space_id, kind, name, write_back_policy)
-    values (${input.spaceId}, ${input.kind}, ${input.name}, ${input.writeBackPolicy})
-    returning id, space_id, kind, name, write_back_policy, status
-  `) as ConnectorRow[]
-  const row = rows[0]
-  if (!row) throw new Error('createConnector: insert returned no row')
-  return row
-}
-
-export async function getConnectorById(id: string): Promise<ConnectorRow | null> {
-  const rows = (await sql`
-    select id, space_id, kind, name, write_back_policy, status from connectors where id = ${id}
-  `) as ConnectorRow[]
-  return rows[0] ?? null
-}
-
-/**
- * The write-back policy for a token's bound connector, resolved ('inherit'
- * -> spaceDefault). null = the token has no connector (or it's disabled) —
- * caller falls through to the space default (ARCHITECTURE §3.1).
- */
-export async function resolveConnectorPolicyForToken(
-  tokenId: string,
-  spaceDefault: ConnectorRow['write_back_policy'] & ('auto_merge_clean' | 'proposal_only'),
-): Promise<'auto_merge_clean' | 'proposal_only' | null> {
-  const rows = (await sql`
-    select c.write_back_policy
-    from api_tokens t
-    join connectors c on c.id = t.connector_id
-    where t.id = ${tokenId} and c.status = 'active'
-  `) as { write_back_policy: ConnectorRow['write_back_policy'] }[]
-  const policy = rows[0]?.write_back_policy
-  if (!policy) return null
-  return policy === 'inherit' ? spaceDefault : policy
 }
 
 export async function setCurrentSha(spaceId: string, sha: string): Promise<void> {
@@ -311,25 +269,6 @@ export async function listDocumentPaths(spaceId: string): Promise<string[]> {
   return rows.map((r) => r.path)
 }
 
-/** Mark every connector cursor for a space stale (its last-synced sha != new head). */
-export async function markCursorsStale(spaceId: string): Promise<void> {
-  await sql`
-    update sync_cursors set status = 'stale'
-    where connector_id in (select id from connectors where space_id = ${spaceId})
-      and (last_synced_sha is distinct from (select current_sha from spaces where id = ${spaceId}))
-  `
-}
-
-/** A consumer acks it has synced to `sha`; its cursor becomes current. */
-export async function ackCursor(connectorId: string, sha: string): Promise<void> {
-  await sql`
-    insert into sync_cursors (connector_id, last_synced_sha, last_synced_at, status)
-    values (${connectorId}, ${sha}, now(), 'current')
-    on conflict (connector_id) do update set
-      last_synced_sha = excluded.last_synced_sha, last_synced_at = now(), status = 'current'
-  `
-}
-
 export interface ProposalRow {
   id: string
   space_id: string
@@ -368,11 +307,6 @@ export async function recordDelivery(deliveryId: string, event: string): Promise
     on conflict (delivery_id) do nothing returning delivery_id
   `) as { delivery_id: string }[]
   return rows.length > 0
-}
-
-export async function getConnectorIdForToken(tokenId: string): Promise<string | null> {
-  const rows = (await sql`select connector_id from api_tokens where id = ${tokenId}`) as { connector_id: string | null }[]
-  return rows[0]?.connector_id ?? null
 }
 
 export async function revokeToken(spaceId: string, tokenId: string): Promise<boolean> {
@@ -433,9 +367,10 @@ export async function removeMember(spaceId: string, memberId: string): Promise<b
 export interface TokenMetaRow {
   id: string
   name: string
-  role: 'reader' | 'editor'
+  role: 'reader' | 'editor' | null
+  user_id: string | null
+  proposal_only: boolean
   token_prefix: string
-  connector_id: string | null
   created_by: string
   created_at: string
   last_used_at: string | null
@@ -446,20 +381,11 @@ export interface TokenMetaRow {
 /** Token metadata for the UI — NEVER the hash or plaintext. */
 export async function listTokensMeta(spaceId: string): Promise<TokenMetaRow[]> {
   return (await sql`
-    select id, name, role, token_prefix, connector_id, created_by, created_at,
+    select id, name, role, user_id, proposal_only, token_prefix, created_by, created_at,
            last_used_at, revoked_at, expires_at
     from api_tokens where space_id = ${spaceId}
     order by created_at desc
   `) as TokenMetaRow[]
-}
-
-export async function listConnectors(spaceId: string): Promise<
-  { id: string; kind: string; name: string; write_back_policy: string; status: string; created_at: string }[]
-> {
-  return (await sql`
-    select id, kind, name, write_back_policy, status, created_at
-    from connectors where space_id = ${spaceId} order by created_at
-  `) as { id: string; kind: string; name: string; write_back_policy: string; status: string; created_at: string }[]
 }
 
 export interface AuditRow {

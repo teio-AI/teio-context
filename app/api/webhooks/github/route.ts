@@ -82,7 +82,6 @@ async function handlePush(p: PushPayload): Promise<void> {
   await reindexChangedPaths(gh, repo, space.id, { upserted: [...upserted], removed: [...removed] }, p.after)
 
   await db.setCurrentSha(space.id, p.after)
-  await db.markCursorsStale(space.id)
   await db.insertAudit({ spaceId: space.id, actorType: 'github', action: 'reindex', path: null, resultSha: p.after, outcome: 'ok' })
 }
 

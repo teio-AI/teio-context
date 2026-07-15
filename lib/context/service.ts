@@ -67,8 +67,6 @@ export interface ContextServiceDeps {
     changed: { upserted: string[]; removed: string[] },
     commitSha: string,
   ): Promise<unknown>
-  /** Mark consumer sync cursors stale after a merged write (freshness-out). */
-  markCursorsStale(spaceId: string): Promise<void>
   /** Record a PR-backed proposal (proposal_only or conflict). Returns the proposal id. */
   recordProposal(input: RecordProposalInput): Promise<string>
   /** Authoritative attribution + operability record (ARCHITECTURE §6). */
@@ -251,18 +249,16 @@ export class GitContextService implements ContextService {
     sync: { gh: GitHubApi; repo: { owner: string; repo: string; branch: string }; changed: { upserted: string[]; removed: string[] } },
   ): Promise<WriteResult> {
     if (result.status === 'merged') {
-      // Update ALL derived state, THEN advance current_sha last, so current_sha
-      // means "everything is reconciled to here." If any step fails after the
-      // git commit landed, the write is still durable in git and current_sha
-      // stays behind — the backfill cron (head != current_sha) reconciles the
-      // index + cursors. So a derived-state hiccup never fails a committed write
-      // and never silently drops it from search.
+      // Reindex the changed paths, THEN advance current_sha last, so current_sha
+      // means "the search index is reconciled to here." If reindex fails after
+      // the git commit landed, the write is still durable in git and current_sha
+      // stays behind — the backfill cron (head != current_sha) reconciles it. So
+      // a derived-state hiccup never fails a committed write or drops it from search.
       try {
         await this.deps.reindexChanged(sync.gh, sync.repo, spaceId, sync.changed, result.version)
-        await this.deps.markCursorsStale(spaceId)
         await this.deps.setCurrentSha(spaceId, result.version)
       } catch {
-        // swallowed: git write succeeded; cron reconciles derived state
+        // swallowed: git write succeeded; cron reconciles the index
       }
       const action = opKind === 'upsert' ? (result.viaFastPath ? 'cas_write' : 'merge') : opKind
       await this.deps.audit({

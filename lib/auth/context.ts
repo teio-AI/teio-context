@@ -29,7 +29,16 @@ export async function resolvePrincipal(req: Request, deps: AuthzDeps): Promise<R
   const resolved = await resolveMachineToken(req.headers.get('authorization'), deps.findTokenByPrefix)
   if (resolved) {
     if (deps.touchTokenLastUsed) void deps.touchTokenLastUsed(resolved.row.id).catch(() => {})
-    return { principal: resolved.principal, tokenBinding: { spaceId: resolved.row.space_id, role: resolved.row.role } }
+    // A member-owned token's role follows the member's current membership (so a
+    // role change / removal takes effect immediately). A service token carries
+    // its own role.
+    let role: Role | null = resolved.row.role
+    if (resolved.row.user_id) {
+      role = await deps.getMemberRole(resolved.row.space_id, 'user', resolved.row.user_id)
+      if (!role) throw new UnauthorizedError('token owner is no longer a member of this space')
+    }
+    if (!role) throw new UnauthorizedError('token has no role')
+    return { principal: resolved.principal, tokenBinding: { spaceId: resolved.row.space_id, role } }
   }
 
   const { userId } = await auth()
