@@ -89,9 +89,9 @@ describe('requireSpaceAccess', () => {
 
   it('allows a Clerk user with sufficient role via space_members', async () => {
     authMock.mockResolvedValue({ userId: 'user_1' })
-    const deps = makeDeps({ getMemberRole: async () => 'owner' })
+    const deps = makeDeps({ getMemberRole: async () => 'admin' })
     const result = await requireSpaceAccess(reqWithAuth(), 's1', 'editor', deps)
-    expect(result.role).toBe('owner')
+    expect(result.role).toBe('admin')
   })
 
   it('denies and audits a Clerk user with no membership', async () => {

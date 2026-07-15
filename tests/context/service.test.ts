@@ -87,7 +87,7 @@ describe('GitContextService', () => {
   })
 
   it('listSpaces delegates to listSpacesForPrincipal with the principal', async () => {
-    const listSpacesForPrincipal = vi.fn(async () => [{ id: 's1', slug: 'acme', name: 'Acme', role: 'owner' as const }])
+    const listSpacesForPrincipal = vi.fn(async () => [{ id: 's1', slug: 'acme', name: 'Acme', role: 'admin' as const }])
     const spaces = await new GitContextService(makeDeps({ listSpacesForPrincipal })).listSpaces(principal)
     expect(spaces).toHaveLength(1)
     expect(listSpacesForPrincipal).toHaveBeenCalledWith(principal)

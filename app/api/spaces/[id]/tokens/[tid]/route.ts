@@ -11,7 +11,7 @@ export const runtime = 'nodejs'
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string; tid: string }> }): Promise<Response> {
   try {
     const { id, tid } = await ctx.params
-    const { principal } = await requireSpaceAccess(req, id, 'owner', authzDeps)
+    const { principal } = await requireSpaceAccess(req, id, 'admin', authzDeps)
 
     const revoked = await db.revokeToken(id, tid)
     if (!revoked) throw new NotFoundError('token not found or already revoked')

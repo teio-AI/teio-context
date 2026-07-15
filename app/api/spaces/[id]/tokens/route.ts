@@ -17,7 +17,7 @@ export const runtime = 'nodejs'
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }): Promise<Response> {
   try {
     const { id } = await ctx.params
-    await requireSpaceAccess(req, id, 'owner', authzDeps)
+    await requireSpaceAccess(req, id, 'admin', authzDeps)
     return Response.json({ tokens: await db.listTokensMeta(id) })
   } catch (err) {
     return toResponse(err)
@@ -45,7 +45,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join('; '))
     const { name, role, connectorId, expiresAt } = parsed.data
 
-    const { principal } = await requireSpaceAccess(req, id, 'owner', authzDeps)
+    const { principal } = await requireSpaceAccess(req, id, 'admin', authzDeps)
 
     if (connectorId) {
       const connector = await db.getConnectorById(connectorId)

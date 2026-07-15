@@ -46,7 +46,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       }
     }
 
-    const { principal } = await requireSpaceAccess(req, id, 'owner', authzDeps)
+    const { principal } = await requireSpaceAccess(req, id, 'admin', authzDeps)
     const requestId = getRequestId(req) // capture before the response returns; `req` outlives the handler in after()
 
     after(async () => {

@@ -77,7 +77,7 @@ describe('POST /api/spaces', () => {
     expect(res.status).toBe(201)
     expect(h.provisionSpaceRepo).toHaveBeenCalledOnce()
     expect(h.createSpace).toHaveBeenCalledOnce()
-    expect(h.addMember).toHaveBeenCalledWith('s1', 'user', 'staff-1', 'owner', 'staff-1')
+    expect(h.addMember).toHaveBeenCalledWith('s1', 'user', 'staff-1', 'admin', 'staff-1')
     expect(h.ghRequest).not.toHaveBeenCalled() // no rollback on the happy path
   })
 

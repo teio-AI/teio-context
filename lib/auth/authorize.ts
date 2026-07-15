@@ -1,7 +1,7 @@
 import { ForbiddenError, ValidationError } from '../errors'
 import type { Principal, Role } from '../context/types'
 
-const RANK: Record<Role, number> = { reader: 1, editor: 2, owner: 3 }
+const RANK: Record<Role, number> = { reader: 1, editor: 2, admin: 3 }
 
 export function hasRole(actual: Role, required: Role): boolean {
   return RANK[actual] >= RANK[required]
@@ -46,14 +46,14 @@ export function assertSafePath(path: string): void {
 }
 
 /**
- * Which role a write to `path` requires. space.yaml is an owner artifact
- * (owners/connectors/policy), so it needs owner even though it is writable
+ * Which role a write to `path` requires. space.yaml is an admin artifact
+ * (members/connectors/policy), so it needs admin even though it is writable
  * markup (finding #12). Everything else must live under context/. Also rejects
  * traversal (assertSafePath) so a write can't escape the context/ sandbox.
  */
 export function requiredRoleForPath(path: string): Role {
   assertSafePath(path)
-  if (path === 'space.yaml') return 'owner'
+  if (path === 'space.yaml') return 'admin'
   if (path.startsWith('context/')) return 'editor'
   throw new ValidationError(`path outside the write whitelist: ${path}`)
 }

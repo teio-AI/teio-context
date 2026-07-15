@@ -6,7 +6,7 @@ interface SpaceSummary {
   id: string
   slug: string
   name: string
-  role: 'owner' | 'editor' | 'reader'
+  role: 'admin' | 'editor' | 'reader'
 }
 
 const wrap: React.CSSProperties = { fontFamily: 'system-ui', maxWidth: 860, margin: '0 auto', padding: '2rem', lineHeight: 1.5 }
@@ -14,7 +14,7 @@ const card: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 8, p
 const btn: React.CSSProperties = { padding: '0.45rem 0.9rem', cursor: 'pointer', borderRadius: 6, border: '1px solid #888', background: '#fafafa' }
 const roleTag = (r: string): React.CSSProperties => ({
   fontSize: 12, padding: '2px 8px', borderRadius: 999, marginLeft: 8,
-  background: r === 'owner' ? '#eef' : r === 'editor' ? '#efe' : '#eee', color: '#333',
+  background: r === 'admin' ? '#eef' : r === 'editor' ? '#efe' : '#eee', color: '#333',
 })
 
 export default function Dashboard() {
@@ -27,14 +27,16 @@ export default function Dashboard() {
 
   async function load() {
     setErr(null)
-    const [meRes, spRes] = await Promise.all([fetch('/api/me'), fetch('/api/spaces')])
+    // /api/me first — it reconciles pending email invitations into memberships,
+    // so the spaces list below reflects any invite this user just accepted.
+    const meRes = await fetch('/api/me')
     if (meRes.status === 401) {
       window.location.href = '/sign-in'
       return
     }
     const me = await meRes.json().catch(() => ({}))
     setIsStaff(!!me.isStaff)
-    const sp = await spRes.json().catch(() => ({ spaces: [] }))
+    const sp = await (await fetch('/api/spaces')).json().catch(() => ({ spaces: [] }))
     setSpaces(sp.spaces ?? [])
   }
   useEffect(() => {

@@ -51,8 +51,8 @@ describe.skipIf(!shouldRun)('db integration (real Postgres)', () => {
   it('members: upsert + role lookup + role change', async () => {
     await db.addMember(spaceId, 'user', 'user_x', 'reader', 'sys')
     expect(await db.getMemberRole(spaceId, 'user', 'user_x')).toBe('reader')
-    await db.addMember(spaceId, 'user', 'user_x', 'owner', 'sys') // on conflict → update
-    expect(await db.getMemberRole(spaceId, 'user', 'user_x')).toBe('owner')
+    await db.addMember(spaceId, 'user', 'user_x', 'admin', 'sys') // on conflict → update
+    expect(await db.getMemberRole(spaceId, 'user', 'user_x')).toBe('admin')
     expect(await db.getMemberRole(spaceId, 'user', 'nobody')).toBeNull()
   })
 

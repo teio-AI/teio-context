@@ -40,7 +40,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => i.message).join('; '))
     const { kind, name } = parsed.data
 
-    const { principal } = await requireSpaceAccess(req, id, 'owner', authzDeps)
+    const { principal } = await requireSpaceAccess(req, id, 'admin', authzDeps)
 
     const writeBackPolicy = parsed.data.writeBackPolicy ?? defaultPolicyForKind(kind)
     if (!writeBackPolicy) throw new ValidationError(`writeBackPolicy is required for connector kind "${kind}"`)

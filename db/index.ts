@@ -419,7 +419,7 @@ export async function listMembers(spaceId: string): Promise<MemberListRow[]> {
   return (await sql`
     select id, principal_type, principal_id, role, created_by, created_at
     from space_members where space_id = ${spaceId}
-    order by case role when 'owner' then 0 when 'editor' then 1 else 2 end, created_at
+    order by case role when 'admin' then 0 when 'editor' then 1 else 2 end, created_at
   `) as MemberListRow[]
 }
 
@@ -487,6 +487,59 @@ export interface ActivityStats {
   writes_7d: number
   docs: number
   open_proposals: number
+}
+
+export interface PendingInvite {
+  id: string
+  space_id: string
+  email: string
+  role: 'admin' | 'editor' | 'reader'
+  invited_by: string
+  created_at: string
+}
+
+/** Upsert a pending email invitation (re-inviting the same email updates the role). */
+export async function createPendingInvitation(input: {
+  spaceId: string
+  email: string
+  role: 'admin' | 'editor' | 'reader'
+  invitedBy: string
+  clerkInvitationId?: string | null
+}): Promise<{ id: string }> {
+  const rows = (await sql`
+    insert into pending_invitations (space_id, email, role, invited_by, clerk_invitation_id)
+    values (${input.spaceId}, ${input.email.toLowerCase()}, ${input.role}, ${input.invitedBy}, ${input.clerkInvitationId ?? null})
+    on conflict (space_id, email) do update set
+      role = excluded.role, invited_by = excluded.invited_by, clerk_invitation_id = excluded.clerk_invitation_id
+    returning id
+  `) as { id: string }[]
+  const row = rows[0]
+  if (!row) throw new Error('createPendingInvitation: insert returned no row')
+  return row
+}
+
+export async function listPendingInvitations(spaceId: string): Promise<PendingInvite[]> {
+  return (await sql`
+    select id, space_id, email, role, invited_by, created_at
+    from pending_invitations where space_id = ${spaceId} order by created_at desc
+  `) as PendingInvite[]
+}
+
+export async function cancelPendingInvitation(spaceId: string, id: string): Promise<boolean> {
+  const rows = (await sql`delete from pending_invitations where id = ${id} and space_id = ${spaceId} returning id`) as { id: string }[]
+  return rows.length > 0
+}
+
+/** All pending invites for an email (across spaces) — used to reconcile on login. */
+export async function listPendingForEmail(email: string): Promise<PendingInvite[]> {
+  return (await sql`
+    select id, space_id, email, role, invited_by, created_at
+    from pending_invitations where lower(email) = ${email.toLowerCase()}
+  `) as PendingInvite[]
+}
+
+export async function deletePendingInvitationById(id: string): Promise<void> {
+  await sql`delete from pending_invitations where id = ${id}`
 }
 
 /** Per-project activity summary for the dashboard overview. */
