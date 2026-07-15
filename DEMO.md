@@ -116,21 +116,21 @@ and (because the ai-agent token is propose-only) **open a PR** instead of writin
 to main. Tools available: `list_spaces`, `get_version`, `get_document`, `search`,
 `propose_update`, `move_path`, `delete_path`, `list_proposals`.
 
-## The developer's day: `/startwork` + `/handoff` (client kit)
+## The developer's day: `/teio-start` + `/teio-complete` (client kit)
 The strongest segment — show context capture as part of a real workflow, not raw
 API calls. Ships in [`client-kit/`](client-kit/README.md) as Claude Code commands
 that run in the developer's own session (so they work for GitHub, Azure Repos, or
 a plain folder — Claude reads the local working copy; teio-context stores it).
 
-- **`/startwork`** — loads the project's shared context into the session. On the
+- **`/teio-start`** — loads the project's shared context into the session. On the
   **first** run (empty context) it **bootstraps**: copies existing docs verbatim
   **and** synthesizes `overview / architecture / components / glossary`. This is
   the "they forgot to document it" safety net — the context repo is never empty.
-- **`/handoff`** — persists the session: updates the affected context docs **and**
-  prepends an entry to `context/handoffs/log.md`. The next `/startwork` picks it up.
+- **`/teio-complete`** — persists the session: updates the affected context docs **and**
+  prepends an entry to `context/handoffs/log.md`. The next `/teio-start` picks it up.
 
-Demo beat: open a fresh repo, run `/startwork` (watch it import), make a change,
-run `/handoff` (watch it write back + log), then run `/startwork` again in a
+Demo beat: open a fresh repo, run `/teio-start` (watch it import), make a change,
+run `/teio-complete` (watch it write back + log), then run `/teio-start` again in a
 "second developer" window and show the handoff is already there. Setup is in
 `client-kit/README.md` (copy the commands, fill `.mcp.json` with a project token).
 

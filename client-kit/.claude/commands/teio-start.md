@@ -59,4 +59,4 @@ skimmable. When done, tell me what you imported.
 ## 5. Brief me
 In 3–6 lines: what this project is, what the last handoff said (if any), and
 anything that looks stale or missing. Then we start working. When we're done,
-I'll run `/handoff` to persist what we learned.
+I'll run `/teio-complete` to persist what we learned.

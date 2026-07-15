@@ -5,7 +5,7 @@ allowed-tools: Read, Glob, Grep, mcp__teio-context__list_spaces, mcp__teio-conte
 ---
 
 You are ending a work session on a teio-context-backed project. Persist what
-changed so the next person or agent picks it up on their `/startwork`.
+changed so the next person or agent picks it up on their `/teio-start`.
 
 **⚠️ This working directory (my code repo) is READ-ONLY to you.** Never create,
 edit, move, or delete any file here, and never run git against it. All writes go
