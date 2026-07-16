@@ -24,24 +24,29 @@ Open **Settings → Personal access token** and generate one. This single token
 works across **all** your projects and acts with **your role** on each — no
 per-project token swapping. Treat it like an API key; you can revoke it anytime.
 
-## 3. Install the MCP server (once)
+## 3. Install (once)
 
-Configure the teio-context MCP server at **user scope**, so it's available in
-every repo and added to none:
+**Recommended — one step.** The plugin bundles both commands **and** the MCP
+server, and prompts you for your token (stored in your OS keychain, not in any
+file). In Claude Code:
+
+```
+/plugin marketplace add teio-AI/teio-context
+/plugin install teio-context@teio-context
+```
+
+You'll be prompted for your **personal token** from step 2. That's it — your
+commands are `/teio-context:teio-start` and `/teio-context:teio-complete`.
+
+**Alternative — manual** (if you'd rather not use the plugin; gives the shorter
+bare command names `/teio-start` / `/teio-complete`):
 
 ```
 claude mcp add --scope user teio-context \
   --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
   --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PERSONAL_TOKEN \
   -- npx -y teio-context-mcp
-```
 
-## 4. Install the commands (once)
-
-Copy the two Claude Code commands into your user folder (available everywhere,
-committed nowhere):
-
-```
 mkdir -p ~/.claude/commands
 cp client-kit/.claude/commands/*.md ~/.claude/commands/
 ```
@@ -51,6 +56,9 @@ Restart Claude Code.
 ---
 
 ## Daily use
+
+*Command names depend on how you installed: plugin →
+`/teio-context:teio-start`; manual → `/teio-start`. Shown below in the short form.*
 
 ### `/teio-start <project-slug>`
 

@@ -26,7 +26,20 @@ Guaranteed, by design:
 - The install below is **user-level**, so **no files are added to your code repo
   either** (no `.claude/`, no `.mcp.json` committed).
 
-## Install — zero footprint (recommended)
+## Install — one step (recommended)
+
+Install the **plugin** — it bundles both commands **and** the MCP server, and
+prompts for your token (stored in your OS keychain). In Claude Code:
+```
+/plugin marketplace add teio-AI/teio-context
+/plugin install teio-context@teio-context
+```
+Commands are then `/teio-context:teio-start` and `/teio-context:teio-complete`.
+(Get your personal token under **Settings → Personal access token**.)
+
+## Install — manual, zero footprint
+
+Prefer the shorter bare command names (`/teio-start`) or not using the plugin:
 
 1. **Commands → your user folder** (available in every repo, added to none):
    ```
