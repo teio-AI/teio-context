@@ -34,8 +34,11 @@ claude plugin marketplace add teio-AI/teio-context
 claude plugin install teio@teio-ai --config api_token=tctx_YOUR_TOKEN
 ```
 
-Use your **personal token** from step 2 (the `tctx_…`). Then **restart Claude
-Code** — your commands are `/teio:start` and `/teio:complete`.
+Use your **personal token** from step 2 (the `tctx_…`).
+
+**Then fully quit and reopen Claude Code** — the plugin's MCP server and commands
+only load on a fresh start. After that your commands are `/teio:start` and
+`/teio:complete`.
 
 *In-app alternative:* if your Claude Code exposes the `/plugin` command, run
 `/plugin marketplace add teio-AI/teio-context`, `/plugin install teio@teio-ai`,
