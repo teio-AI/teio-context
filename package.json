@@ -12,7 +12,6 @@
     "test:watch": "vitest",
     "migrate": "node db/migrate.ts",
     "mcp": "bun run mcp/server.ts",
-    "build:plugin": "bun build mcp/server.ts --target=node --outfile client-kit/plugin/dist/server.js && chmod +x client-kit/plugin/dist/server.js",
     "smoke": "bun run scripts/smoke.ts"
   },
   "dependencies": {

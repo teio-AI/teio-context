@@ -28,8 +28,9 @@ Guaranteed, by design:
 
 ## Install (one step)
 
-Install the **plugin** — it bundles both commands **and** the MCP server
-(self-contained; only Node.js needed). From your **terminal**:
+Install the **plugin** — it ships both commands and connects to the **hosted**
+teio-context MCP over HTTPS, so it works in the **terminal and the desktop app**
+(nothing runs locally). From your **terminal**:
 ```
 claude plugin marketplace add teio-AI/teio-context
 claude plugin install teio@teio-ai --config api_token=tctx_YOUR_TOKEN
