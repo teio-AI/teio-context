@@ -30,14 +30,30 @@ For each topic that changed:
   write). If a topic file doesn't exist yet, create it (no base needed).
 
 ## 4. Log the handoff
-- `get_document("context/handoffs/log.md")` — it may not exist yet.
-- **Prepend** a new entry at the top (newest first), then `propose_update` it:
-  ```
-  ## <YYYY-MM-DD> — <me or the agent>
-  - <2–5 bullets: what changed, decisions made, anything the next session should know>
+Handoffs are **one file per day** (so concurrent sessions on different days never
+touch the same file), plus a thin newest-first **index** that `/teio-start` reads.
 
-  <existing log content below>
-  ```
+**a. Write the dated handoff file** — `context/handoffs/<YYYY-MM-DD>.md`:
+- `get_document("context/handoffs/<YYYY-MM-DD>.md")` for today's date.
+  - **Not found** → create it with a header and your entry:
+    ```
+    # Handoffs — <YYYY-MM-DD>
+
+    ## <headline> — <me or the agent>
+    - <2–5 bullets: what changed, decisions made, anything the next session should know>
+    ```
+  - **Exists** (an earlier session already ran today) → **append** your entry as a
+    new `## <headline>` section at the bottom, then `propose_update` with the
+    `baseVersion`/`baseBlob` you just read (CAS append — don't clobber the day).
+
+**b. Update the index** — `context/handoffs/log.md`:
+- `get_document("context/handoffs/log.md")` — may not exist yet.
+  - **Not found** → create it: `# Handoff index\n\n` then your line.
+  - **Exists** → **prepend** one line under the header (newest first), then
+    `propose_update` with the base you just read:
+    ```
+    - <YYYY-MM-DD> — <headline> → `context/handoffs/<YYYY-MM-DD>.md`
+    ```
 
 ## 5. Report
 Tell me which docs you updated, and for each write whether it **merged** (200) or
