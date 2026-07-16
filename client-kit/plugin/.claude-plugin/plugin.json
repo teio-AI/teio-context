@@ -24,8 +24,8 @@
   },
   "mcpServers": {
     "teio-context": {
-      "command": "npx",
-      "args": ["-y", "teio-context-mcp"],
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/server.js"],
       "env": {
         "TEIO_CONTEXT_API_URL": "${user_config.api_url}",
         "TEIO_CONTEXT_TOKEN": "${user_config.api_token}"
