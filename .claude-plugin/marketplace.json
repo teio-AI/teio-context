@@ -1,12 +1,12 @@
 {
-  "name": "teio-context",
+  "name": "teio-ai",
   "owner": { "name": "teio" },
-  "description": "teio-context — shared context layer for Claude Code.",
+  "description": "teio — shared context layer for Claude Code.",
   "plugins": [
     {
-      "name": "teio-context",
+      "name": "teio",
       "source": "./client-kit/plugin",
-      "description": "/teio-context:teio-start + /teio-context:teio-complete commands and the teio-context MCP server, in one install."
+      "description": "/teio:start + /teio:complete commands and the teio-context MCP server, in one install."
     }
   ]
 }

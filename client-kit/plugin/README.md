@@ -1,13 +1,13 @@
 # teio-context plugin
 
-One-step Claude Code plugin: bundles the `/teio-context:teio-start` and
-`/teio-context:teio-complete` commands **and** the teio-context MCP server, and
+One-step Claude Code plugin: bundles the `/teio:start` and
+`/teio:complete` commands **and** the teio-context MCP server, and
 prompts for a personal token on install (stored in the OS keychain).
 
 ## Install (end users)
 ```
 /plugin marketplace add teio-AI/teio-context
-/plugin install teio-context@teio-context
+/plugin install teio@teio-ai
 ```
 
 ## Layout
