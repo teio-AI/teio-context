@@ -26,9 +26,9 @@ per-project token swapping. Treat it like an API key; you can revoke it anytime.
 
 ## 3. Install (once)
 
-**Recommended — one step.** The plugin bundles both commands **and** the MCP
-server (self-contained — no npm, just needs Node.js), and prompts you for your
-token (stored in your OS keychain, not in any file). In Claude Code:
+Install the plugin — it bundles both commands **and** the MCP server
+(self-contained — no npm, just needs Node.js) and prompts you for your token
+(stored in your OS keychain, not in any file). In Claude Code:
 
 ```
 /plugin marketplace add teio-AI/teio-context
@@ -38,29 +38,14 @@ token (stored in your OS keychain, not in any file). In Claude Code:
 You'll be prompted for your **personal token** from step 2. That's it — your
 commands are `/teio:start` and `/teio:complete`.
 
-**Alternative — manual** (if you'd rather not use the plugin; gives the shorter
-bare command names `/teio-start` / `/teio-complete`):
-
-```
-claude mcp add --scope user teio-context \
-  --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
-  --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PERSONAL_TOKEN \
-  -- npx -y teio-context-mcp
-
-mkdir -p ~/.claude/commands
-cp client-kit/.claude/commands/*.md ~/.claude/commands/
-```
-
-Restart Claude Code.
+*(No `/plugin` command? Update Claude Code, or run the same two commands from your
+terminal as `claude plugin marketplace add …` / `claude plugin install …`.)*
 
 ---
 
 ## Daily use
 
-*Command names depend on how you installed: plugin →
-`/teio:start`; manual → `/teio-start`. Shown below in the short form.*
-
-### `/teio-start <project-slug>`
+### `/teio:start <project-slug>`
 
 Run it from inside the code repo you're working on. It:
 
@@ -71,7 +56,7 @@ Run it from inside the code repo you're working on. It:
 - When you open a **different code repo of the same project**, it **imports** that
   repo into the project (see *Multiple repos* below).
 
-### `/teio-complete "<short summary>"`
+### `/teio:complete "<short summary>"`
 
 Run it when you're done. It persists what the session learned — updates the
 affected docs and logs a dated handoff — so the next person (or the next model)
@@ -113,9 +98,9 @@ or in GitHub.
 ## Multiple repos in one project
 
 A client with several code repos still has **one** context repo. The first repo
-you `/teio-start` bootstraps the shared layer plus its own `repos/<repo>/` subtree.
+you `/teio:start` bootstraps the shared layer plus its own `repos/<repo>/` subtree.
 When a teammate opens a **second** repo of the same project and runs
-`/teio-start <slug>`, teio-context notices that repo isn't represented yet,
+`/teio:start <slug>`, teio-context notices that repo isn't represented yet,
 **imports** it into `context/repos/<second-repo>/`, and registers it in the shared
 `architecture.md` Repositories index. From then on, everyone's briefing shows the
 whole system — all repos, side by side.
@@ -145,4 +130,4 @@ summaries and decisions) lives in the context repo. Your source stays where it i
 working copy; where your code is hosted doesn't matter.
 
 **I work on several projects.** One personal token covers all of them.
-`/teio-start` lists what you can see; just name the project: `/teio-start acme`.
+`/teio:start` lists what you can see; just name the project: `/teio:start acme`.
