@@ -27,7 +27,7 @@ const h = vi.hoisted(() => ({
   deletePendingInvitationById: vi.fn(async () => {}),
   listTokensMeta: vi.fn(async () => [{ id: 't1', name: 'ai', role: 'editor', user_id: null, proposal_only: true, token_prefix: 'tctx_x_ab', created_by: 'u', created_at: 't', last_used_at: null, revoked_at: null, expires_at: null }]),
   getActivityStats: vi.fn(async () => ({ current_sha: 'abc', last_updated: 't', writes_7d: 3, docs: 5, open_proposals: 1 })),
-  listRecentAudit: vi.fn(async () => [{ id: '1', ts: 't', actor_type: 'user', actor_id: 'u', actor_display: null, action: 'cas_write', path: 'context/a.md', outcome: 'ok' }]),
+  listRecentAudit: vi.fn(async () => [{ id: '1', ts: 't', actor_type: 'user', actor_id: 'user_a', actor_display: null, action: 'cas_write', path: 'context/a.md', outcome: 'ok' }]),
   listDocuments: vi.fn(async () => [{ path: 'context/overview.md', title: 'Overview', snippet: 's', updated_at: 't' }]),
   insertAudit: vi.fn(async () => {}),
 }))
@@ -239,6 +239,8 @@ describe('dashboard endpoints', () => {
     const body = await res.json()
     expect(body.stats.writes_7d).toBe(3)
     expect(body.events).toHaveLength(1)
+    // user-actor id is resolved to an email for display
+    expect(body.events[0].actor_email).toBe('a@co.com')
   })
 
   it('GET /api/me → reports staff flag', async () => {
