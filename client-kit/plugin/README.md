@@ -8,6 +8,7 @@ prompts for a personal token on install (stored in the OS keychain).
 ```
 /plugin marketplace add teio-AI/teio-context
 /plugin install teio@teio-ai
+/plugin configure teio@teio-ai   # paste your personal token
 ```
 
 ## Layout
