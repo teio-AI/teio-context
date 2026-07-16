@@ -21,8 +21,8 @@ export function Shell({ children }: { children: ReactNode }) {
           <a className={`nav-item${onProjects ? ' active' : ''}`} href="/dashboard">
             Projects
           </a>
-          <a className="nav-item" href="/">
-            Home
+          <a className={`nav-item${path === '/settings' ? ' active' : ''}`} href="/settings">
+            Settings
           </a>
           <a className={`nav-item${path === '/docs' ? ' active' : ''}`} href="/docs">
             Docs

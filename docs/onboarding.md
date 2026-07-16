@@ -20,8 +20,8 @@ working directory; every write goes to the separate teio-context repo.
 
 ## 2. Generate your personal token
 
-On the dashboard, open **"Personal access token"** and generate one. This single
-token works across **all** your projects and acts with **your role** on each — no
+Open **Settings → Personal access token** and generate one. This single token
+works across **all** your projects and acts with **your role** on each — no
 per-project token swapping. Treat it like an API key; you can revoke it anytime.
 
 ## 3. Install the MCP server (once)
