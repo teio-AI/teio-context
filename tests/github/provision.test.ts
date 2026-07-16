@@ -78,6 +78,25 @@ describe('provisionSpaceRepo', () => {
     ).rejects.toBeInstanceOf(FreeTierProtectionError)
   })
 
+  it('opt-in: allowUnprotected creates the space WITHOUT protection when rulesets 403', async () => {
+    const { api, calls } = fakeGh((m, p) => {
+      if (m === 'POST' && p.endsWith('/repos')) return { status: 201, data: {} }
+      if (m === 'PUT' && p.includes('/contents/space.yaml')) return { status: 201, data: {} }
+      if (m === 'POST' && p.endsWith('/rulesets')) {
+        throw new GitHubError(403, 'Upgrade to GitHub Pro or make this repository public to enable this feature.', 'POST /rulesets')
+      }
+      if (m === 'GET' && p.includes('/git/ref/heads/main')) return { status: 200, data: { object: { sha: 'z9' } } }
+      throw new Error(`unexpected ${m} ${p}`)
+    })
+
+    const res = await provisionSpaceRepo(api, { owner: 'ravi', repo: 'x', appId: 1, spaceYaml: '', private: true, allowUnprotected: true })
+
+    // Space is still created (main SHA resolved), just unprotected.
+    expect(res).toMatchObject({ mainSha: 'z9', rulesetId: null, protected: false })
+    // The private repo was still created.
+    expect((calls.find((c) => c.path.endsWith('/repos'))!.body as { private: boolean }).private).toBe(true)
+  })
+
   it('dev mode: creates a PUBLIC repo under a USER account (/user/repos, private:false)', async () => {
     const { api, calls } = fakeGh((m, p) => {
       if (m === 'POST' && p.endsWith('/repos')) return { status: 201, data: {} }
