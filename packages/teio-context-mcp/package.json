@@ -3,12 +3,24 @@
   "version": "0.1.0",
   "description": "MCP server for teio-context — read/write a project's shared context over the teio-context API.",
   "type": "module",
+  "license": "MIT",
+  "keywords": ["mcp", "model-context-protocol", "teio", "shared-context", "claude"],
+  "homepage": "https://github.com/teio-AI/teio-context/tree/main/packages/teio-context-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/teio-AI/teio-context.git",
+    "directory": "packages/teio-context-mcp"
+  },
   "bin": {
     "teio-context-mcp": "dist/server.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18"
   },
