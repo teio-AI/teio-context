@@ -41,8 +41,8 @@ Guaranteed, by design:
      --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PERSONAL_TOKEN \
      -- npx -y teio-context-mcp
    ```
-   - `TEIO_CONTEXT_TOKEN` → your **personal access token**: generate it on the
-     **dashboard** ("Personal access token"). One token for every project; it acts
+   - `TEIO_CONTEXT_TOKEN` → your **personal access token**: generate it under
+     **Settings → Personal access token**. One token for every project; it acts
      with your role on each. No per-project swapping.
    - `npx teio-context-mcp` works once the package is published to npm (see
      `packages/teio-context-mcp`). Until then, build it and point at the local
@@ -61,8 +61,8 @@ above if you don't want that.
 Machine auth — no login flow. The MCP server sends your `TEIO_CONTEXT_TOKEN` as a
 `Bearer` header on every API call; teio-context verifies it server-side (sha256,
 constant-time) and enforces access. Token kinds:
-- **Personal token** (recommended for your own agent/MCP) — generated on the
-  **dashboard**; **space-unbound**, so it works across **all your projects** and
+- **Personal token** (recommended for your own agent/MCP) — generated under
+  **Settings**; **space-unbound**, so it works across **all your projects** and
   acts with **your role** on each (Owner/Admin/Editor/Reader). One token, no
   swapping. `list_spaces` returns every project you can access; pick one with
   `/teio-start <slug>`.
@@ -70,7 +70,7 @@ constant-time) and enforces access. Token kinds:
   project. **Service token** = admin-minted, explicit role, for a non-human
   consumer; can carry "require review".
 - The token lives in your **user-level** MCP config, not in any repo. Treat it
-  like an API key; revoke it anytime (dashboard). Humans use Clerk sign-in for the
+  like an API key; revoke it anytime (Settings). Humans use Clerk sign-in for the
   web/API; machines/agents use these tokens.
 
 ## What writes do

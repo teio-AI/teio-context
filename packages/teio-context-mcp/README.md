@@ -9,12 +9,14 @@ published bundle has no runtime dependencies.
 ```bash
 claude mcp add --scope user teio-context \
   --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
-  --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PROJECT_TOKEN \
+  --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PERSONAL_TOKEN \
   -- npx -y teio-context-mcp
 ```
 
-- `TEIO_CONTEXT_TOKEN` — a project token from the dashboard (Tokens tab). Its
-  role follows your membership; add "require review" to make writes open PRs.
+- `TEIO_CONTEXT_TOKEN` — your **personal access token** (Settings → Personal
+  access token); acts with your role on every project. A per-project **service
+  token** (a project's Tokens tab, admin-only) works too and can carry "require
+  review" to make its writes open PRs.
 - Tools: `list_spaces`, `get_version`, `get_document`, `search`,
   `propose_update`, `move_path`, `delete_path`, `list_proposals`.
 
