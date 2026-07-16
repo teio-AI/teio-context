@@ -33,13 +33,15 @@ Install the plugin — it bundles both commands **and** the MCP server
 ```
 /plugin marketplace add teio-AI/teio-context
 /plugin install teio@teio-ai
+/plugin configure teio@teio-ai
 ```
 
-You'll be prompted for your **personal token** from step 2. That's it — your
-commands are `/teio:start` and `/teio:complete`.
+`/plugin configure` asks for your **personal token** from step 2 (paste the
+`tctx_…`; leave the API URL as its default). That's it — your commands are
+`/teio:start` and `/teio:complete`.
 
-*(No `/plugin` command? Update Claude Code, or run the same two commands from your
-terminal as `claude plugin marketplace add …` / `claude plugin install …`.)*
+*(No `/plugin` command? Update Claude Code, or run these from your terminal as
+`claude plugin marketplace add …` / `claude plugin install … --config api_token=tctx_…`.)*
 
 ---
 
