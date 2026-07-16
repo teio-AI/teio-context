@@ -26,8 +26,9 @@ per-project token swapping. Treat it like an API key; you can revoke it anytime.
 
 ## 3. Install (once)
 
-The plugin bundles both commands **and** the MCP server (self-contained; only
-Node.js needed). From your **terminal**:
+The plugin ships both commands and connects to the **hosted** teio-context MCP
+over HTTPS — so it works in the **terminal and the desktop app**, with nothing
+running locally. From your **terminal**:
 
 ```
 claude plugin marketplace add teio-AI/teio-context
