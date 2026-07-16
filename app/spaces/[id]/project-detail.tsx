@@ -9,7 +9,7 @@ type Tab = 'overview' | 'context' | 'members' | 'tokens' | 'history'
 interface Member { id: string; principal_type: string; principal_id: string; role: Role; created_at: string; email?: string | null; is_owner?: boolean }
 interface Pending { id: string; email: string; role: string; created_at: string }
 interface TokenMeta { id: string; name: string; role: string | null; user_id: string | null; proposal_only: boolean; token_prefix: string; created_at: string; last_used_at: string | null; revoked_at: string | null; owner_email?: string | null }
-interface AuditEvent { id: string; ts: string; actor_type: string; actor_display: string | null; actor_id: string | null; action: string; path: string | null; outcome: string }
+interface AuditEvent { id: string; ts: string; actor_type: string; actor_display: string | null; actor_id: string | null; actor_email: string | null; action: string; path: string | null; outcome: string }
 interface Stats { current_sha: string | null; last_updated: string | null; writes_7d: number; docs: number; open_proposals: number }
 
 const fmt = (t: string | null) => (t ? new Date(t).toLocaleString() : '—')
@@ -236,7 +236,7 @@ export default function ProjectDetail({ id }: { id: string }) {
               {events.map((e) => (
                 <tr key={e.id}>
                   <td className="muted">{fmt(e.ts)}</td>
-                  <td>{e.actor_display ?? e.actor_id ?? e.actor_type}</td>
+                  <td>{e.actor_email ?? e.actor_display ?? e.actor_id ?? e.actor_type}</td>
                   <td>{e.action}</td>
                   <td className="muted">{e.path ?? '—'}</td>
                   <td className={e.outcome === 'ok' ? 'pos' : e.outcome === 'conflict' ? '' : 'neg'} style={e.outcome === 'conflict' ? { color: 'var(--warn)' } : undefined}>{e.outcome}</td>
