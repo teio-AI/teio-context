@@ -27,8 +27,8 @@ per-project token swapping. Treat it like an API key; you can revoke it anytime.
 ## 3. Install (once)
 
 **Recommended — one step.** The plugin bundles both commands **and** the MCP
-server, and prompts you for your token (stored in your OS keychain, not in any
-file). In Claude Code:
+server (self-contained — no npm, just needs Node.js), and prompts you for your
+token (stored in your OS keychain, not in any file). In Claude Code:
 
 ```
 /plugin marketplace add teio-AI/teio-context
