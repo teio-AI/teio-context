@@ -1,7 +1,7 @@
 {
-  "name": "teio-context",
+  "name": "teio",
   "version": "0.1.0",
-  "description": "Load and persist a project's shared context in your Claude Code session — /teio-context:teio-start and /teio-context:teio-complete, backed by the teio-context MCP server.",
+  "description": "Load and persist a project's shared context in your Claude Code session — /teio:start and /teio:complete, backed by the teio-context MCP server.",
   "author": { "name": "teio" },
   "homepage": "https://teio-context.vercel.app/docs",
   "license": "MIT",

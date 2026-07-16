@@ -91,4 +91,4 @@ The shared context already exists; this repo just isn't represented yet.
 ## 6. Brief me
 In 3–6 lines: what the project is, **which repos it spans** (from the Repositories
 index), what THIS repo is and its role, what the last handoff said, and anything
-stale or missing. Then we start working. When done, I'll run `/teio-complete`.
+stale or missing. Then we start working. When done, I'll run `/teio:complete`.

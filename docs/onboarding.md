@@ -32,11 +32,11 @@ token (stored in your OS keychain, not in any file). In Claude Code:
 
 ```
 /plugin marketplace add teio-AI/teio-context
-/plugin install teio-context@teio-context
+/plugin install teio@teio-ai
 ```
 
 You'll be prompted for your **personal token** from step 2. That's it — your
-commands are `/teio-context:teio-start` and `/teio-context:teio-complete`.
+commands are `/teio:start` and `/teio:complete`.
 
 **Alternative — manual** (if you'd rather not use the plugin; gives the shorter
 bare command names `/teio-start` / `/teio-complete`):
@@ -58,7 +58,7 @@ Restart Claude Code.
 ## Daily use
 
 *Command names depend on how you installed: plugin →
-`/teio-context:teio-start`; manual → `/teio-start`. Shown below in the short form.*
+`/teio:start`; manual → `/teio-start`. Shown below in the short form.*
 
 ### `/teio-start <project-slug>`
 

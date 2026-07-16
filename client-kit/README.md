@@ -32,9 +32,9 @@ Install the **plugin** — it bundles both commands **and** the MCP server, and
 prompts for your token (stored in your OS keychain). In Claude Code:
 ```
 /plugin marketplace add teio-AI/teio-context
-/plugin install teio-context@teio-context
+/plugin install teio@teio-ai
 ```
-Commands are then `/teio-context:teio-start` and `/teio-context:teio-complete`.
+Commands are then `/teio:start` and `/teio:complete`.
 (Get your personal token under **Settings → Personal access token**.)
 
 ## Install — manual, zero footprint
