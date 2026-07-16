@@ -26,22 +26,24 @@ per-project token swapping. Treat it like an API key; you can revoke it anytime.
 
 ## 3. Install (once)
 
-Install the plugin — it bundles both commands **and** the MCP server
-(self-contained — no npm, just needs Node.js) and prompts you for your token
-(stored in your OS keychain, not in any file). In Claude Code:
+The plugin bundles both commands **and** the MCP server (self-contained; only
+Node.js needed). From your **terminal**:
 
 ```
-/plugin marketplace add teio-AI/teio-context
-/plugin install teio@teio-ai
-/plugin configure teio@teio-ai
+claude plugin marketplace add teio-AI/teio-context
+claude plugin install teio@teio-ai --config api_token=tctx_YOUR_TOKEN
 ```
 
-`/plugin configure` asks for your **personal token** from step 2 (paste the
-`tctx_…`; leave the API URL as its default). That's it — your commands are
-`/teio:start` and `/teio:complete`.
+Use your **personal token** from step 2 (the `tctx_…`). Then **restart Claude
+Code** — your commands are `/teio:start` and `/teio:complete`.
 
-*(No `/plugin` command? Update Claude Code, or run these from your terminal as
-`claude plugin marketplace add …` / `claude plugin install … --config api_token=tctx_…`.)*
+*In-app alternative:* if your Claude Code exposes the `/plugin` command, run
+`/plugin marketplace add teio-AI/teio-context`, `/plugin install teio@teio-ai`,
+then `/plugin configure teio@teio-ai` to enter the token via a prompt (keeps it
+out of shell history).
+
+*Change your token later:* `claude plugin uninstall teio@teio-ai` then install
+again with the new `--config api_token=…` (or re-run `/plugin configure`).
 
 ---
 

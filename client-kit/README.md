@@ -29,19 +29,21 @@ Guaranteed, by design:
 ## Install (one step)
 
 Install the **plugin** — it bundles both commands **and** the MCP server
-(self-contained; only Node.js needed), and prompts for your token (stored in your
-OS keychain). In Claude Code:
+(self-contained; only Node.js needed). From your **terminal**:
 ```
-/plugin marketplace add teio-AI/teio-context
-/plugin install teio@teio-ai
-/plugin configure teio@teio-ai
+claude plugin marketplace add teio-AI/teio-context
+claude plugin install teio@teio-ai --config api_token=tctx_YOUR_TOKEN
 ```
-`/plugin configure` asks for your **personal token** (generate it under
-**Settings → Personal access token**; leave the API URL as its default). Commands
-are then `/teio:start` and `/teio:complete`.
+`tctx_…` is your **personal token** (generate it under **Settings → Personal
+access token**). **Restart Claude Code** — commands are then `/teio:start` and
+`/teio:complete`.
 
-No `/plugin` command? Update Claude Code, or run these from your terminal
-(`claude plugin marketplace add …` / `claude plugin install … --config api_token=tctx_…`).
+*In-app alternative* (if your Claude Code has the `/plugin` command): `/plugin
+marketplace add teio-AI/teio-context`, `/plugin install teio@teio-ai`, then
+`/plugin configure teio@teio-ai` to enter the token via a prompt.
+
+*Change the token later:* `claude plugin uninstall teio@teio-ai` then reinstall
+with the new `--config api_token=…`.
 
 ## Authentication
 

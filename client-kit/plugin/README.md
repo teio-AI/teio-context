@@ -5,11 +5,18 @@ One-step Claude Code plugin: bundles the `/teio:start` and
 prompts for a personal token on install (stored in the OS keychain).
 
 ## Install (end users)
+
+From the terminal (works everywhere):
 ```
-/plugin marketplace add teio-AI/teio-context
-/plugin install teio@teio-ai
-/plugin configure teio@teio-ai   # paste your personal token
+claude plugin marketplace add teio-AI/teio-context
+claude plugin install teio@teio-ai --config api_token=tctx_YOUR_TOKEN
 ```
+Then restart Claude Code. Commands: `/teio:start`, `/teio:complete`.
+
+In-app (if `/plugin` is available): `/plugin marketplace add teio-AI/teio-context`
+→ `/plugin install teio@teio-ai` → `/plugin configure teio@teio-ai` (prompts for
+the token). Change the token later: `claude plugin uninstall teio@teio-ai` then
+reinstall with a new `--config api_token=…`.
 
 ## Layout
 ```
