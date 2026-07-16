@@ -4,11 +4,13 @@ Drop-in `/teio-start` and `/teio-complete` commands for Claude Code, so a develo
 day on any project is:
 
 - **`/teio-start`** — loads the project's shared context into the session. On the
-  **first** run (empty context) it **bootstraps** the context from the repo/folder
-  you're in: copies existing docs verbatim **and** writes a synthesized
-  overview/architecture/components/glossary layer.
-- **`/teio-complete`** — persists what the session learned: updates the affected context
-  docs and prepends an entry to `context/handoffs/log.md`.
+  **first** run (empty context) it **bootstraps** from the repo/folder you're in.
+  When you open a **different code repo of the same project**, it **imports that
+  repo** into its own subtree (`context/repos/<repo>/`) and registers it in the
+  shared layer. Otherwise it just **restores** the existing context.
+- **`/teio-complete`** — persists what the session learned: updates the affected
+  docs (repo-specific under `context/repos/<repo>/`, project-wide in the shared
+  layer) and logs a dated handoff.
 
 These run **inside your Claude Code session**, so they work no matter where your
 code lives (GitHub, Azure Repos, a plain folder) — Claude reads your local
@@ -91,14 +93,29 @@ just name the project: `/teio-start acme`. No per-project token, no swapping.
 
 ## What gets written where
 
+One project (client) = one context repo. A **shared** layer describes the whole
+system; each code repo gets its **own subtree** under `context/repos/<repo>/`.
+
 ```
 context/
-  overview.md            ← synthesized (what/who/key facts)
-  architecture.md        ← synthesized (components, data flow, deps)
-  components.md          ← synthesized (modules/dirs)
-  glossary.md            ← synthesized (domain terms)
-  imported/…             ← your existing docs, copied verbatim
+  overview.md            ← shared: what the whole project/client is
+  architecture.md        ← shared: how the repos fit together + a Repositories index
+  glossary.md            ← shared: domain terms
+  conventions.md         ← shared: standing decisions (created as needed)
   handoffs/
     log.md               ← thin newest-first index (one line per session)
     2026-07-15.md        ← full handoff entries, one file per day
+  repos/
+    acme-api/
+      overview.md        ← this repo: what it is + its role in the project
+      components.md      ← this repo: main modules/dirs
+      imported/…         ← this repo's existing docs, copied verbatim
+    acme-web/
+      overview.md
+      components.md
+      imported/…
 ```
+
+A single-repo project just has one folder under `repos/`. Multiple code repos for
+the same client all live in **one** context repo, side by side. (Future non-code
+sources — meetings, people — slot in as sibling folders like `context/meetings/`.)

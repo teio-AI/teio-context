@@ -24,6 +24,9 @@ export function Shell({ children }: { children: ReactNode }) {
           <a className="nav-item" href="/">
             Home
           </a>
+          <a className={`nav-item${path === '/docs' ? ' active' : ''}`} href="/docs">
+            Docs
+          </a>
         </nav>
         <div className="sidebar-foot">
           <div className="user-email">{user?.primaryEmailAddress?.emailAddress ?? '…'}</div>
