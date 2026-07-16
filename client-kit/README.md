@@ -1,14 +1,14 @@
 # teio-context client kit
 
-Drop-in `/teio-start` and `/teio-complete` commands for Claude Code, so a developer's
+Drop-in `/teio:start` and `/teio:complete` commands for Claude Code, so a developer's
 day on any project is:
 
-- **`/teio-start`** — loads the project's shared context into the session. On the
+- **`/teio:start`** — loads the project's shared context into the session. On the
   **first** run (empty context) it **bootstraps** from the repo/folder you're in.
   When you open a **different code repo of the same project**, it **imports that
   repo** into its own subtree (`context/repos/<repo>/`) and registers it in the
   shared layer. Otherwise it just **restores** the existing context.
-- **`/teio-complete`** — persists what the session learned: updates the affected
+- **`/teio:complete`** — persists what the session learned: updates the affected
   docs (repo-specific under `context/repos/<repo>/`, project-wide in the shared
   layer) and logs a dated handoff.
 
@@ -23,51 +23,23 @@ Guaranteed, by design:
   scoped so they **cannot** create, edit, delete, or `git`-commit anything in it.
 - **Every write goes to the separate teio-context context repo** (teio's own git
   repo), via the teio-context MCP tools — never to your code repo.
-- The install below is **user-level**, so **no files are added to your code repo
-  either** (no `.claude/`, no `.mcp.json` committed).
+- The **plugin** installs at user level (into Claude Code's plugin cache), so
+  **nothing is added to your code repo** — no `.claude/` or `.mcp.json` committed.
 
-## Install — one step (recommended)
+## Install (one step)
 
-Install the **plugin** — it bundles both commands **and** the MCP server, and
-prompts for your token (stored in your OS keychain). In Claude Code:
+Install the **plugin** — it bundles both commands **and** the MCP server
+(self-contained; only Node.js needed), and prompts for your token (stored in your
+OS keychain). In Claude Code:
 ```
 /plugin marketplace add teio-AI/teio-context
 /plugin install teio@teio-ai
 ```
-Commands are then `/teio:start` and `/teio:complete`.
-(Get your personal token under **Settings → Personal access token**.)
+You'll be prompted for your **personal token** (generate it under **Settings →
+Personal access token**). Commands are then `/teio:start` and `/teio:complete`.
 
-## Install — manual, zero footprint
-
-Prefer the shorter bare command names (`/teio-start`) or not using the plugin:
-
-1. **Commands → your user folder** (available in every repo, added to none):
-   ```
-   mkdir -p ~/.claude/commands
-   cp client-kit/.claude/commands/*.md ~/.claude/commands/
-   ```
-2. **MCP server → user scope** (not the repo). Configure it **once** with a
-   **personal token** that works across all your projects:
-   ```
-   claude mcp add --scope user teio-context \
-     --env TEIO_CONTEXT_API_URL=https://teio-context.vercel.app \
-     --env TEIO_CONTEXT_TOKEN=tctx_YOUR_PERSONAL_TOKEN \
-     -- npx -y teio-context-mcp
-   ```
-   - `TEIO_CONTEXT_TOKEN` → your **personal access token**: generate it under
-     **Settings → Personal access token**. One token for every project; it acts
-     with your role on each. No per-project swapping.
-   - `npx teio-context-mcp` works once the package is published to npm (see
-     `packages/teio-context-mcp`). Until then, build it and point at the local
-     bundle: `-- node /ABS/PATH/packages/teio-context-mcp/dist/server.js`.
-3. Restart Claude Code, `cd` into a project, run `/teio-start <project-slug>`.
-
-## Alternative — repo-scoped (only if your team WANTS it committed)
-
-If a team prefers the config to live with the repo, copy the commands to
-`<repo>/.claude/commands/` and `client-kit/.mcp.json` to the repo root instead.
-This **does** add those files to the code repo — use the zero-footprint install
-above if you don't want that.
+No `/plugin` command? Update Claude Code, or run the same two commands from your
+terminal (`claude plugin marketplace add …` / `claude plugin install …`).
 
 ## Authentication
 
@@ -78,7 +50,7 @@ constant-time) and enforces access. Token kinds:
   **Settings**; **space-unbound**, so it works across **all your projects** and
   acts with **your role** on each (Owner/Admin/Editor/Reader). One token, no
   swapping. `list_spaces` returns every project you can access; pick one with
-  `/teio-start <slug>`.
+  `/teio:start <slug>`.
 - **Project token** — minted in a project's Tokens tab; scoped to that one
   project. **Service token** = admin-minted, explicit role, for a non-human
   consumer; can carry "require review".
@@ -100,8 +72,8 @@ its writes open a PR instead — good for an AI agent you want a human to approv
 ## Working on several projects
 
 With a **personal token** you configure the MCP server **once** and it sees all
-your projects. `/teio-start` calls `list_spaces`; if you can see more than one,
-just name the project: `/teio-start acme`. No per-project token, no swapping.
+your projects. `/teio:start` calls `list_spaces`; if you can see more than one,
+just name the project: `/teio:start acme`. No per-project token, no swapping.
 (A single **project token** is still fine if you only work on one project.)
 
 ## What gets written where
