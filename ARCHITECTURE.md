@@ -13,8 +13,11 @@ This doc turns SPEC.md into a buildable v1. Forks resolved in review:
 
 The spike added two **hard requirements** that are load-bearing for the whole bet:
 
-- **Space repos must live in a paid GitHub org (Team/Enterprise).** Free-tier
-  private repos cannot set branch protection or rulesets (§7.1).
+- **Space repos must live in a paid GitHub org (Team/Enterprise)** for the
+  protected default. Free-tier private repos cannot set branch protection or
+  rulesets (§7.1). Self-hosters on a free plan can opt into
+  `GITHUB_ALLOW_UNPROTECTED=true` to create private repos *without* protection,
+  or use public repos — see §7.1 for the three deployment modes.
 - **The App must be a ruleset bypass actor**, with the PR-required rule scoped to
   humans. Otherwise every auto-merge write is blocked with 409 (§3, §6).
 
@@ -463,8 +466,22 @@ primary v1 write path has no approver record.
 ### 7.1 Git-as-database at scale — VERDICT: GO, with a paid-org requirement
 
 **Hard requirement (spike S1):** private-repo branch protection + rulesets are
-**unavailable on GitHub's free tier** (spike hit hard 403s). Space repos MUST live
-in a **paid org (Team/Enterprise)**. This is a cost line, not optional.
+**unavailable on GitHub's free tier** (spike hit hard 403s). The protected default
+therefore needs a **paid org (Team/Enterprise)**.
+
+**Deployment modes (open-source: pick what your plan allows).** Provisioning
+applies a PR-required ruleset (force-push + deletion blocked, App as bypass actor);
+what happens if that 403s depends on config:
+
+| Mode | Env | Repos | Protection |
+|---|---|---|---|
+| **Paid org** (recommended) | `GITHUB_REPO_VISIBILITY=private` on a Team/Enterprise org | private | ✅ ruleset enforced |
+| **Public** | `GITHUB_REPO_VISIBILITY=public` | public | ✅ rulesets are free on public repos |
+| **Free + unprotected** (opt-in) | `GITHUB_ALLOW_UNPROTECTED=true` | private | ⚠️ none — `main` is not guarded against force-push/deletion; `base_version` integrity is best-effort |
+
+Default (neither flag) stays **fail-loud**: provisioning throws `FreeTierProtectionError`
+rather than silently create an unprotected space. `GITHUB_ALLOW_UNPROTECTED` downgrades
+that to a warning and records `protected: false` on the provisioning result.
 
 | Dimension | Where it breaks | Mitigation | Trigger to switch |
 |---|---|---|---|

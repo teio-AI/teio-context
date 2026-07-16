@@ -13,6 +13,10 @@ const schema = z.object({
   // the paid org exists. Default to the prod-safe org + private.
   GITHUB_OWNER_TYPE: z.enum(['org', 'user']).optional(),
   GITHUB_REPO_VISIBILITY: z.enum(['public', 'private']).optional(),
+  // Free-tier escape hatch: allow creating PRIVATE space repos WITHOUT branch
+  // protection when the org's plan can't apply rulesets (GitHub Free). Off by
+  // default — provisioning fails loud so a space is never silently unprotected.
+  GITHUB_ALLOW_UNPROTECTED: z.string().optional(),
   GITHUB_WEBHOOK_SECRET: z.string().optional(),
   CLERK_SECRET_KEY: z.string().optional(),
   /** Comma-separated Clerk user ids allowed to create spaces (lib/auth/staff.ts). */
@@ -38,6 +42,8 @@ export interface GitHubConfig {
   org: string
   ownerType: 'org' | 'user'
   visibility: 'public' | 'private'
+  /** Opt-in: create private repos unprotected if the org can't apply rulesets (free tier). */
+  allowUnprotected: boolean
 }
 
 /**
@@ -65,5 +71,6 @@ export function getGitHubConfig(env: Env = getEnv()): GitHubConfig {
     org: GITHUB_ORG,
     ownerType: env.GITHUB_OWNER_TYPE ?? 'org',
     visibility: env.GITHUB_REPO_VISIBILITY ?? 'private',
+    allowUnprotected: env.GITHUB_ALLOW_UNPROTECTED === 'true' || env.GITHUB_ALLOW_UNPROTECTED === '1',
   }
 }

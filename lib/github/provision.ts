@@ -12,6 +12,12 @@ export interface ProvisionParams {
   spaceYaml: string
   /** Repo visibility. Default private (prod). Dev on a free account uses public so rulesets are free. */
   private?: boolean
+  /**
+   * Free-tier escape hatch. If the protection ruleset 403s (private repo on a
+   * GitHub Free org), skip protection and create the space UNPROTECTED instead
+   * of throwing. Opt-in via GITHUB_ALLOW_UNPROTECTED — off by default.
+   */
+  allowUnprotected?: boolean
 }
 
 export interface ProvisionResult {
@@ -19,7 +25,10 @@ export interface ProvisionResult {
   repo: string
   defaultBranch: string
   mainSha: string
-  rulesetId: number
+  /** The protection ruleset id, or null when the space was created unprotected (free-tier opt-in). */
+  rulesetId: number | null
+  /** False when branch protection was skipped (GITHUB_ALLOW_UNPROTECTED). */
+  protected: boolean
 }
 
 /**
@@ -29,7 +38,9 @@ export interface ProvisionResult {
  *   3. create a PR-required ruleset with the App as a bypass actor + force-push/deletion off
  *
  * Fails LOUD with FreeTierProtectionError if step 3 hits the free-tier 403 —
- * we never create an unprotected space (base_version integrity, §7.1).
+ * we never create an unprotected space (base_version integrity, §7.1) — UNLESS
+ * `allowUnprotected` is set, in which case it warns and registers the space
+ * without protection (free-tier opt-in for self-hosters).
  */
 export async function provisionSpaceRepo(gh: GitHubApi, p: ProvisionParams): Promise<ProvisionResult> {
   const createPath = p.ownerType === 'user' ? '/user/repos' : `/orgs/${p.owner}/repos`
@@ -46,19 +57,25 @@ export async function provisionSpaceRepo(gh: GitHubApi, p: ProvisionParams): Pro
     branch: 'main',
   })
 
-  let rulesetId: number
+  let rulesetId: number | null = null
   try {
     const rs = await gh.request<{ id: number }>('POST', `/repos/${p.owner}/${p.repo}/rulesets`, rulesetBody(p.appId))
     rulesetId = rs.data.id
   } catch (err) {
     if (err instanceof GitHubError && err.status === 403 && /upgrade|make this repository public|pro\b/i.test(err.message)) {
-      throw new FreeTierProtectionError(p.owner, p.repo)
+      if (!p.allowUnprotected) throw new FreeTierProtectionError(p.owner, p.repo)
+      // Opt-in free-tier path: register the space without branch protection.
+      console.warn(
+        `[teio-context] ${p.owner}/${p.repo}: branch protection unavailable (free-tier private repo); ` +
+          `creating UNPROTECTED because GITHUB_ALLOW_UNPROTECTED is set. main is not guarded against force-push/deletion.`,
+      )
+    } else {
+      throw err
     }
-    throw err
   }
 
   const ref = await gh.request<{ object: { sha: string } }>('GET', `/repos/${p.owner}/${p.repo}/git/ref/heads/main`)
-  return { owner: p.owner, repo: p.repo, defaultBranch: 'main', mainSha: ref.data.object.sha, rulesetId }
+  return { owner: p.owner, repo: p.repo, defaultBranch: 'main', mainSha: ref.data.object.sha, rulesetId, protected: rulesetId !== null }
 }
 
 /**

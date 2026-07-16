@@ -53,7 +53,7 @@ export async function POST(req: Request): Promise<Response> {
     const { slug, name } = parsed.data
 
     // Throws a clean 503 github_unconfigured if the App env isn't set yet.
-    const { appId, privateKey, org, ownerType, visibility } = getGitHubConfig()
+    const { appId, privateKey, org, ownerType, visibility, allowUnprotected } = getGitHubConfig()
 
     // Pre-check the slug BEFORE we touch GitHub. `spaces.slug` is unique, so a
     // dup would otherwise fail only at the Neon insert — after the repo is
@@ -78,6 +78,7 @@ export async function POST(req: Request): Promise<Response> {
       appId,
       spaceYaml,
       private: visibility === 'private',
+      allowUnprotected,
     })
 
     // Register in Neon. If this fails, the repo was just created (only the
