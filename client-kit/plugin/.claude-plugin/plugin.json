@@ -1,0 +1,35 @@
+{
+  "name": "teio-context",
+  "version": "0.1.0",
+  "description": "Load and persist a project's shared context in your Claude Code session — /teio-context:teio-start and /teio-context:teio-complete, backed by the teio-context MCP server.",
+  "author": { "name": "teio" },
+  "homepage": "https://teio-context.vercel.app/docs",
+  "license": "MIT",
+  "keywords": ["teio", "shared-context", "mcp", "handoff"],
+  "userConfig": {
+    "api_token": {
+      "type": "string",
+      "title": "teio-context personal token",
+      "description": "Generate at teio-context.vercel.app → Settings → Personal access token (starts with tctx_).",
+      "sensitive": true,
+      "required": true
+    },
+    "api_url": {
+      "type": "string",
+      "title": "teio-context API URL",
+      "description": "Leave as the default unless you self-host.",
+      "required": false,
+      "default": "https://teio-context.vercel.app"
+    }
+  },
+  "mcpServers": {
+    "teio-context": {
+      "command": "npx",
+      "args": ["-y", "teio-context-mcp"],
+      "env": {
+        "TEIO_CONTEXT_API_URL": "${user_config.api_url}",
+        "TEIO_CONTEXT_TOKEN": "${user_config.api_token}"
+      }
+    }
+  }
+}
