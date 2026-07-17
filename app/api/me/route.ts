@@ -1,7 +1,7 @@
 import { auth, currentUser } from '@clerk/nextjs/server'
 import * as db from '@/db'
 import { getEnv } from '@/lib/env'
-import { isStaff, parseStaffIds } from '@/lib/auth/staff'
+import { isStaff, isStaffEmail, parseStaffEmails, parseStaffIds } from '@/lib/auth/staff'
 import { UnauthorizedError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
 
@@ -32,9 +32,12 @@ export async function GET(): Promise<Response> {
       }
     }
 
+    const env = getEnv()
     return Response.json({
       userId,
-      isStaff: isStaff(userId, parseStaffIds(getEnv().STAFF_USER_IDS)),
+      isStaff:
+        isStaff(userId, parseStaffIds(env.STAFF_USER_IDS)) ||
+        isStaffEmail(verifiedEmails, parseStaffEmails(env.STAFF_EMAILS)),
       joined,
     })
   } catch (err) {

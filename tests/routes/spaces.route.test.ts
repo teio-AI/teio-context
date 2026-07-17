@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // drifting into orphaned repos.
 const h = vi.hoisted(() => ({
   auth: vi.fn(),
-  getEnv: vi.fn(() => ({ STAFF_USER_IDS: 'staff-1' })),
+  currentUser: vi.fn(async (): Promise<{ emailAddresses: unknown[] } | null> => ({ emailAddresses: [] })),
+  getEnv: vi.fn((): { STAFF_USER_IDS?: string; STAFF_EMAILS?: string } => ({ STAFF_USER_IDS: 'staff-1' })),
   getGitHubConfig: vi.fn(() => ({
     appId: 1,
     privateKey: 'k',
@@ -29,7 +30,7 @@ const h = vi.hoisted(() => ({
   insertAudit: vi.fn(async () => {}),
 }))
 
-vi.mock('@clerk/nextjs/server', () => ({ auth: h.auth }))
+vi.mock('@clerk/nextjs/server', () => ({ auth: h.auth, currentUser: h.currentUser }))
 vi.mock('@/lib/env', () => ({ getEnv: h.getEnv, getGitHubConfig: h.getGitHubConfig }))
 vi.mock('@/lib/github/app-auth', () => ({ getInstallationId: h.getInstallationId }))
 vi.mock('@/lib/github/singleton', () => ({ getInstallationTokenProvider: () => ({ getToken: h.getToken }) }))
@@ -62,6 +63,15 @@ describe('POST /api/spaces', () => {
     const res = await POST(post({ slug: 'acme', name: 'Acme' }))
     expect(res.status).toBe(403)
     expect(h.provisionSpaceRepo).not.toHaveBeenCalled()
+  })
+
+  it('allows a user whose verified email is in STAFF_EMAILS (no id needed)', async () => {
+    h.auth.mockResolvedValue({ userId: 'brand-new-user' })
+    h.getEnv.mockReturnValue({ STAFF_USER_IDS: 'staff-1', STAFF_EMAILS: 'vinay@teio.ai' })
+    h.currentUser.mockResolvedValue({ emailAddresses: [{ emailAddress: 'Vinay@teio.ai', verification: { status: 'verified' } }] })
+    const res = await POST(post({ slug: 'acme', name: 'Acme' }))
+    expect(res.status).toBe(201)
+    expect(h.provisionSpaceRepo).toHaveBeenCalled()
   })
 
   it('returns 409 for a duplicate slug WITHOUT provisioning a repo', async () => {

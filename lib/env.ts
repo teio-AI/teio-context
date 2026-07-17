@@ -21,6 +21,8 @@ const schema = z.object({
   CLERK_SECRET_KEY: z.string().optional(),
   /** Comma-separated Clerk user ids allowed to create spaces (lib/auth/staff.ts). */
   STAFF_USER_IDS: z.string().optional(),
+  /** Comma-separated emails allowed to create spaces — pre-authorize before signup. */
+  STAFF_EMAILS: z.string().optional(),
   /** Bearer secret the backfill cron must present (app/api/cron/backfill). */
   CRON_SECRET: z.string().optional(),
 })
