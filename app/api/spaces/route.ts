@@ -1,9 +1,9 @@
-import { auth } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { z } from 'zod'
 import * as db from '@/db'
 import { ConflictError, ForbiddenError, UnauthorizedError, ValidationError } from '@/lib/errors'
 import { getEnv, getGitHubConfig } from '@/lib/env'
-import { isStaff, parseStaffIds } from '@/lib/auth/staff'
+import { isStaff, isStaffEmail, parseStaffEmails, parseStaffIds } from '@/lib/auth/staff'
 import { getInstallationId } from '@/lib/github/app-auth'
 import { GitHubClient } from '@/lib/github/client'
 import { getInstallationTokenProvider } from '@/lib/github/singleton'
@@ -44,7 +44,16 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const { userId } = await auth()
     if (!userId) throw new UnauthorizedError('sign in required')
-    if (!isStaff(userId, parseStaffIds(getEnv().STAFF_USER_IDS))) {
+    const env = getEnv()
+    let allowed = isStaff(userId, parseStaffIds(env.STAFF_USER_IDS))
+    if (!allowed) {
+      const user = await currentUser()
+      const verifiedEmails = (user?.emailAddresses ?? [])
+        .filter((e) => e.verification?.status === 'verified')
+        .map((e) => e.emailAddress)
+      allowed = isStaffEmail(verifiedEmails, parseStaffEmails(env.STAFF_EMAILS))
+    }
+    if (!allowed) {
       throw new ForbiddenError('space creation requires staff access')
     }
 
