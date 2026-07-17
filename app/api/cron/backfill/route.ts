@@ -51,9 +51,13 @@ async function runBackfill(): Promise<void> {
       }
 
       await reconcileProposals(gh, repo, space.id)
-    } catch {
+    } catch (err) {
+      // Record WHY (was silently swallowed). The reason goes in `path` so it
+      // surfaces in the History tab and is queryable, plus console for logs.
+      const detail = err instanceof Error ? err.message : String(err)
+      console.error(`[backfill] space ${space.id} failed:`, detail)
       await db
-        .insertAudit({ spaceId: space.id, actorType: 'github', action: 'backfill', path: null, outcome: 'error' })
+        .insertAudit({ spaceId: space.id, actorType: 'github', action: 'backfill', path: detail.slice(0, 500), outcome: 'error' })
         .catch(() => {})
     }
   }
