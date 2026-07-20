@@ -368,6 +368,25 @@ export async function insertAudit(entry: {
   `
 }
 
+// ---- global owners (materialized from STAFF_EMAILS on login) ----
+
+/** Grant global-owner (upsert). Idempotent; refreshes the stored email. */
+export async function upsertGlobalOwner(userId: string, email: string): Promise<void> {
+  await sql`insert into global_owners (user_id, email) values (${userId}, ${email})
+            on conflict (user_id) do update set email = excluded.email`
+}
+
+/** Revoke global-owner (when the email is no longer in STAFF_EMAILS). */
+export async function removeGlobalOwner(userId: string): Promise<void> {
+  await sql`delete from global_owners where user_id = ${userId}`
+}
+
+/** Is this user a materialized global owner (email-authorized)? */
+export async function isGlobalOwnerId(userId: string): Promise<boolean> {
+  const rows = (await sql`select 1 from global_owners where user_id = ${userId} limit 1`) as unknown[]
+  return rows.length > 0
+}
+
 // ---- dashboard read models (control-plane UI) ----
 
 export interface MemberListRow {

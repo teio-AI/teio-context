@@ -1,7 +1,7 @@
 import { auth, currentUser } from '@clerk/nextjs/server'
 import * as db from '@/db'
 import { getEnv } from '@/lib/env'
-import { isStaff, isStaffEmail, parseStaffEmails, parseStaffIds } from '@/lib/auth/staff'
+import { isStaff, parseStaffEmails, parseStaffIds } from '@/lib/auth/staff'
 import { UnauthorizedError } from '@/lib/errors'
 import { toResponse } from '@/lib/http'
 
@@ -33,11 +33,17 @@ export async function GET(): Promise<Response> {
     }
 
     const env = getEnv()
+    const staffEmails = parseStaffEmails(env.STAFF_EMAILS)
+    const matchedEmail = verifiedEmails.find((e) => staffEmails.has(e.toLowerCase()))
+    // Reconcile global-owner membership from STAFF_EMAILS on every login: grant
+    // when the verified email is listed, revoke when it's been de-listed. This is
+    // what makes email-authorized owners full see-all owners without id-collection.
+    if (matchedEmail) await db.upsertGlobalOwner(userId, matchedEmail)
+    else await db.removeGlobalOwner(userId)
+
     return Response.json({
       userId,
-      isStaff:
-        isStaff(userId, parseStaffIds(env.STAFF_USER_IDS)) ||
-        isStaffEmail(verifiedEmails, parseStaffEmails(env.STAFF_EMAILS)),
+      isStaff: isStaff(userId, parseStaffIds(env.STAFF_USER_IDS)) || !!matchedEmail,
       joined,
     })
   } catch (err) {

@@ -6,7 +6,7 @@ const h = vi.hoisted(() => ({
   auth: vi.fn(),
   currentUser: vi.fn(async (): Promise<{ emailAddresses: { emailAddress: string; verification: { status: string } }[] } | null> => ({ emailAddresses: [] })),
   getMemberRole: vi.fn(async (): Promise<'admin' | 'editor' | 'reader'> => 'reader'),
-  getEnv: vi.fn(() => ({ STAFF_USER_IDS: 'staff-1', CLERK_SECRET_KEY: 'sk_test' })),
+  getEnv: vi.fn((): { STAFF_USER_IDS?: string; STAFF_EMAILS?: string; CLERK_SECRET_KEY?: string } => ({ STAFF_USER_IDS: 'staff-1', CLERK_SECRET_KEY: 'sk_test' })),
   sendClerkInvitation: vi.fn(async (): Promise<{ id: string } | null> => ({ id: 'clerk_inv_1' })),
   revokeClerkInvitation: vi.fn(async () => {}),
   fetchUserEmails: vi.fn(async (): Promise<Record<string, string>> => ({ user_a: 'a@co.com' })),
@@ -25,6 +25,9 @@ const h = vi.hoisted(() => ({
   listPendingInvitations: vi.fn(async () => [{ id: 'inv1', space_id: 's1', email: 'p@co.com', role: 'editor', invited_by: 'user_a', created_at: 't' }]),
   listPendingForEmail: vi.fn(async (): Promise<{ id: string; space_id: string; role: string; email: string; invited_by: string; created_at: string }[]> => []),
   deletePendingInvitationById: vi.fn(async () => {}),
+  upsertGlobalOwner: vi.fn(async () => {}),
+  removeGlobalOwner: vi.fn(async () => {}),
+  isGlobalOwnerId: vi.fn(async (): Promise<boolean> => false),
   listTokensMeta: vi.fn(async () => [{ id: 't1', name: 'ai', role: 'editor', user_id: null, proposal_only: true, token_prefix: 'tctx_x_ab', created_by: 'u', created_at: 't', last_used_at: null, revoked_at: null, expires_at: null }]),
   getActivityStats: vi.fn(async () => ({ current_sha: 'abc', last_updated: 't', writes_7d: 3, docs: 5, open_proposals: 1 })),
   listRecentAudit: vi.fn(async () => [{ id: '1', ts: 't', actor_type: 'user', actor_id: 'user_a', actor_display: null, action: 'cas_write', path: 'context/a.md', outcome: 'ok' }]),
@@ -49,6 +52,7 @@ vi.mock('@/db', () => ({
   listTokensMeta: h.listTokensMeta, getActivityStats: h.getActivityStats,
   listRecentAudit: h.listRecentAudit, insertAudit: h.insertAudit, getMemberRole: h.getMemberRole,
   listDocuments: h.listDocuments,
+  upsertGlobalOwner: h.upsertGlobalOwner, removeGlobalOwner: h.removeGlobalOwner, isGlobalOwnerId: h.isGlobalOwnerId,
   cancelPendingInvitation: h.cancelPendingInvitation, getPendingInvitation: h.getPendingInvitation,
   getSpaceById: h.getSpaceById, insertApiToken: h.insertApiToken,
 }))
@@ -248,6 +252,22 @@ describe('dashboard endpoints', () => {
     expect((await (await meGET()).json()).isStaff).toBe(true)
     h.auth.mockResolvedValue({ userId: 'not-staff' })
     expect((await (await meGET()).json()).isStaff).toBe(false)
+  })
+
+  it('GET /api/me → a verified email in STAFF_EMAILS becomes a materialized global owner', async () => {
+    h.auth.mockResolvedValue({ userId: 'user_new' })
+    h.getEnv.mockReturnValue({ STAFF_USER_IDS: 'staff-1', STAFF_EMAILS: 'tarush@teio.ai', CLERK_SECRET_KEY: 'sk_test' })
+    h.currentUser.mockResolvedValue({ emailAddresses: [{ emailAddress: 'Tarush@teio.ai', verification: { status: 'verified' } }] })
+    const body = await (await meGET()).json()
+    expect(body.isStaff).toBe(true)
+    expect(h.upsertGlobalOwner).toHaveBeenCalledWith('user_new', 'Tarush@teio.ai')
+  })
+
+  it('GET /api/me → a non-listed user is revoked from global owners', async () => {
+    h.auth.mockResolvedValue({ userId: 'user_x' })
+    h.currentUser.mockResolvedValue({ emailAddresses: [{ emailAddress: 'nobody@teio.ai', verification: { status: 'verified' } }] })
+    await meGET()
+    expect(h.removeGlobalOwner).toHaveBeenCalledWith('user_x')
   })
 
   it('GET /api/me → reconciles a pending invite for a verified email into a membership', async () => {

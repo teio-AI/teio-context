@@ -39,9 +39,14 @@ export async function repoRefForSpace(spaceId: string): Promise<RepoRef> {
 }
 
 /** Concrete auth dependencies, shared by every space-scoped route. */
-/** True when the Clerk user is a global Owner (space creator / admin-anywhere). */
-export function isGlobalOwner(userId: string): boolean {
-  return isStaff(userId, parseStaffIds(getEnv().STAFF_USER_IDS))
+/**
+ * True when the Clerk user is a global Owner (sees/administers every project).
+ * Two sources: STAFF_USER_IDS (env, by Clerk id) and the global_owners table
+ * (materialized from STAFF_EMAILS on login, so email-authorized owners count too).
+ */
+export async function isGlobalOwner(userId: string): Promise<boolean> {
+  if (isStaff(userId, parseStaffIds(getEnv().STAFF_USER_IDS))) return true
+  return db.isGlobalOwnerId(userId)
 }
 
 export const authzDeps: AuthzDeps = {
@@ -75,7 +80,7 @@ export function getContextService(): ContextService {
       listSpacesForPrincipal: async (principal) => {
         if (principal.type === 'token') return db.listSpacesForToken(principal.id)
         // A global Owner sees every project (they administer all of them).
-        if (isGlobalOwner(principal.id)) {
+        if (await isGlobalOwner(principal.id)) {
           return (await db.listActiveSpaces()).map((s) => ({ id: s.id, slug: s.slug, name: s.name, role: 'admin' as const }))
         }
         return db.listSpacesForUser(principal.id)
