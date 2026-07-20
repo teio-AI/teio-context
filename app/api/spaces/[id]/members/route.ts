@@ -31,11 +31,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const emails = secretKey
       ? await fetchUserEmails(members.filter((m) => m.principal_type === 'user').map((m) => m.principal_id), secretKey)
       : {}
-    const enriched = members.map((m) => ({
-      ...m,
-      email: emails[m.principal_id] ?? null,
-      is_owner: m.principal_type === 'user' && isGlobalOwner(m.principal_id),
-    }))
+    const enriched = await Promise.all(
+      members.map(async (m) => ({
+        ...m,
+        email: emails[m.principal_id] ?? null,
+        is_owner: m.principal_type === 'user' && (await isGlobalOwner(m.principal_id)),
+      })),
+    )
 
     const pending = hasRole(role, 'admin') ? await db.listPendingInvitations(id) : []
     return Response.json({ members: enriched, pending })

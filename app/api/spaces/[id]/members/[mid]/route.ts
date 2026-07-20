@@ -17,7 +17,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string; 
     const member = await db.getSpaceMember(id, mid)
     if (!member) throw new NotFoundError('member not found on this space')
     // A global Owner always has access anyway; don't let them be removed here.
-    if (member.principal_id && isGlobalOwner(member.principal_id)) {
+    if (member.principal_id && (await isGlobalOwner(member.principal_id))) {
       throw new ValidationError('cannot remove a global Owner')
     }
     // Never orphan a project: keep at least one admin.
