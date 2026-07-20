@@ -15,10 +15,12 @@
     "smoke": "bun run scripts/smoke.ts"
   },
   "dependencies": {
+    "@clerk/mcp-tools": "^0.5.0",
     "@clerk/nextjs": "^6.20.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@neondatabase/serverless": "^0.10.4",
     "marked": "^18.0.6",
+    "mcp-handler": "^1.1.0",
     "next": "^15.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

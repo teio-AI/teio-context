@@ -27,8 +27,8 @@ export interface ResolvedAuth {
 }
 
 /** Resolve WHO is calling (machine token or Clerk session). No space-role check. */
-export async function resolvePrincipal(req: Request, deps: AuthzDeps): Promise<ResolvedAuth> {
-  const resolved = await resolveMachineToken(req.headers.get('authorization'), deps.findTokenByPrefix)
+export async function resolvePrincipal(authHeader: string | null, deps: AuthzDeps): Promise<ResolvedAuth> {
+  const resolved = await resolveMachineToken(authHeader, deps.findTokenByPrefix)
   if (resolved) {
     if (deps.touchTokenLastUsed) void deps.touchTokenLastUsed(resolved.row.id).catch(() => {})
 
@@ -68,9 +68,23 @@ export async function requireSpaceAccess(
   required: Role,
   deps: AuthzDeps,
 ): Promise<{ principal: Principal; role: Role }> {
-  const resolved = await resolvePrincipal(req, deps)
-  const requestId = getRequestId(req)
+  const resolved = await resolvePrincipal(req.headers.get('authorization'), deps)
+  return authorizeResolved(resolved, spaceId, required, deps, getRequestId(req))
+}
 
+/**
+ * Enforce `required` role on `spaceId` for an ALREADY-resolved principal. Split
+ * out of requireSpaceAccess so callers that resolve WHO separately (e.g. the MCP
+ * endpoint, which authenticates via Bearer token OR Clerk OAuth) can reuse the
+ * exact same space-role logic.
+ */
+export async function authorizeResolved(
+  resolved: ResolvedAuth,
+  spaceId: string,
+  required: Role,
+  deps: AuthzDeps,
+  requestId?: string,
+): Promise<{ principal: Principal; role: Role }> {
   if (resolved.tokenBinding) {
     const { spaceId: boundSpaceId, role } = resolved.tokenBinding
     const ok = boundSpaceId === spaceId && hasRole(role, required)

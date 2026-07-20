@@ -41,7 +41,7 @@ describe('resolvePrincipal', () => {
     const row = tokenRow({}, gen.hash)
     const deps = makeDeps({ findTokenByPrefix: async (prefix) => (prefix === gen.prefix ? row : null) })
 
-    const resolved = await resolvePrincipal(reqWithAuth(`Bearer ${gen.token}`), deps)
+    const resolved = await resolvePrincipal(`Bearer ${gen.token}`, deps)
 
     expect(resolved.principal).toEqual({ type: 'token', id: 't1' })
     expect(resolved.tokenBinding).toEqual({ spaceId: 's1', role: 'editor' })
@@ -53,7 +53,7 @@ describe('resolvePrincipal', () => {
     const row = tokenRow({ space_id: null, user_id: 'owner_1', role: null }, gen.hash)
     const deps = makeDeps({ findTokenByPrefix: async (prefix) => (prefix === gen.prefix ? row : null) })
 
-    const resolved = await resolvePrincipal(reqWithAuth(`Bearer ${gen.token}`), deps)
+    const resolved = await resolvePrincipal(`Bearer ${gen.token}`, deps)
 
     expect(resolved.principal).toEqual({ type: 'user', id: 'owner_1' })
     expect(resolved.tokenBinding).toBeUndefined() // acts exactly as that user
@@ -61,14 +61,14 @@ describe('resolvePrincipal', () => {
 
   it('falls back to Clerk when no bearer token is present', async () => {
     authMock.mockResolvedValue({ userId: 'user_1' })
-    const resolved = await resolvePrincipal(reqWithAuth(), makeDeps())
+    const resolved = await resolvePrincipal(null, makeDeps())
     expect(resolved.principal).toEqual({ type: 'user', id: 'user_1' })
     expect(resolved.tokenBinding).toBeUndefined()
   })
 
   it('throws Unauthorized when there is no token and no Clerk session', async () => {
     authMock.mockResolvedValue({ userId: null })
-    await expect(resolvePrincipal(reqWithAuth(), makeDeps())).rejects.toBeInstanceOf(UnauthorizedError)
+    await expect(resolvePrincipal(null, makeDeps())).rejects.toBeInstanceOf(UnauthorizedError)
   })
 })
 
