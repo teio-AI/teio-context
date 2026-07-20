@@ -26,7 +26,7 @@ const Body = z.object({
 /** List spaces the caller (Clerk user or machine token) is a member of. */
 export async function GET(req: Request): Promise<Response> {
   try {
-    const { principal } = await resolvePrincipal(req, authzDeps)
+    const { principal } = await resolvePrincipal(req.headers.get('authorization'), authzDeps)
     const spaces = await getContextService().listSpaces(principal)
     return Response.json({ spaces })
   } catch (err) {
