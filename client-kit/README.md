@@ -48,6 +48,15 @@ marketplace add teio-AI/teio-context`, `/plugin install teio@teio-ai`, then
 *Change the token later:* `claude plugin uninstall teio@teio-ai` then reinstall
 with the new `--config api_token=…`.
 
+### Prefer claude.ai or the desktop app? Use the connector instead
+
+The plugin above is the **Claude Code (terminal)** path and is what gives you the
+`/teio:start` / `/teio:complete` commands. If you'd rather work in **claude.ai** or
+the **desktop app**, skip the plugin and the token: open **Settings → Connectors**,
+Connect **teiō context**, and sign in. You then get the same teiō context tools in
+any chat (no slash commands — just ask Claude to use teiō context). See the
+[onboarding guide](../docs/onboarding.md) for details.
+
 ## Authentication
 
 Machine auth — no login flow. The MCP server sends your `TEIO_CONTEXT_TOKEN` as a
