@@ -7,8 +7,15 @@ model) starts a session already knowing the project. Context lives in a private
 git repo per project; you read and update it from your own Claude Code session
 with two commands.
 
-Nothing you install touches your code repo. The commands only **read** your
-working directory; every write goes to the separate teio-context repo.
+Two ways to use it, pick what fits:
+- **Claude Code (terminal)** — install the plugin; you get `/teio:start` and
+  `/teio:complete` commands (option A below).
+- **Desktop app or claude.ai (web)** — connect the *teiō context* connector and
+  sign in; you get the teiō context tools in any chat, no install or token
+  (option B below).
+
+Nothing touches your code repo — teiō only **reads** your working directory;
+every write goes to the separate teio-context repo.
 
 ---
 
@@ -18,13 +25,15 @@ working directory; every write goes to the separate teio-context repo.
    sign in at **[teio-context.vercel.app](https://teio-context.vercel.app)**.
 2. On the dashboard you'll see the projects you're a member of.
 
-## 2. Generate your personal token
+## 2. Generate your personal token *(only for the Claude Code plugin)*
 
 Open **Settings → Personal access token** and generate one. This single token
 works across **all** your projects and acts with **your role** on each — no
 per-project token swapping. Treat it like an API key; you can revoke it anytime.
+*(Skip this if you're only using the connector in option B — that uses sign-in,
+not a token.)*
 
-## 3. Install (once)
+## 3. Option A — Claude Code (terminal), plugin
 
 The plugin ships both commands and connects to the **hosted** teio-context MCP
 over HTTPS — so it works in the **terminal and the desktop app**, with nothing
@@ -48,6 +57,22 @@ out of shell history).
 
 *Change your token later:* `claude plugin uninstall teio@teio-ai` then install
 again with the new `--config api_token=…` (or re-run `/plugin configure`).
+
+## 4. Option B — desktop app or claude.ai, connector
+
+No install, no token. In **claude.ai** or the **desktop app**, open **Settings →
+Connectors**, find **teiō context** (your admin publishes it for the org), click
+**Connect**, and sign in with your teiō account (Google or email). That's it —
+the teiō context tools are now available in any chat.
+
+The connector gives you the **tools** (list / read / search / propose updates).
+The `/teio:start` and `/teio:complete` **commands** are the Claude Code (option A)
+experience; with the connector you just ask in plain language, e.g.:
+
+> *"Use teiō context to load the **acme** project and brief me on it."*
+> *"Save what we figured out this session to teiō context."*
+
+Everything is scoped to **your role** on each project, same as the plugin.
 
 ---
 
